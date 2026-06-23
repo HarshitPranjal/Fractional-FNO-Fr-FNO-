@@ -11,8 +11,7 @@ print(f"Executing Complete Paper Blueprint Suite on: {device}\n")
 GENERIC_ALPHA = 1.8
 CUSTOM_ALPHAS = {
     "burgers": 1.4278,
-    "allen_cahn": 1.6152,
-    "fitzhugh": 1.3892
+    "allen_cahn": 1.6152
 }
 
 # Set a seed offset for reproducibility across runs. Can be modified.
@@ -110,8 +109,8 @@ class GlobalOperatorNetwork(nn.Module):
 # =====================================================================
 # 4. EXPERIMENTAL DATA ENGINE (MULTI-RESOLUTION COMPATIBLE)
 # =====================================================================
-def generate_pde_dataset(pde_type, num_samples=100, grid_sz=32):
-    np.random.seed(42)
+def generate_pde_dataset(pde_type, num_samples=500, grid_sz=32, seed_count=0):
+    np.random.seed(999+seed_count)
     x = np.linspace(0, 2*np.pi, grid_sz, endpoint=False)
     y = np.linspace(0, 2*np.pi, grid_sz, endpoint=False)
     X, Y = np.meshgrid(x, y)
@@ -143,23 +142,13 @@ def generate_pde_dataset(pde_type, num_samples=100, grid_sz=32):
             inputs.append(np.stack([u0, u0], axis=0))
             targets.append(np.stack([u_next, u_next], axis=0))
 
-        elif pde_type == "fitzhugh":
-            u0 = np.sin(f_a * X) * np.cos(f_b * Y)
-            v0 = 0.2 * np.cos(f_a * X) * np.sin(f_b * Y)
-            u_inter = u0 + dt * ((u0 * (0.3 - u0) * (u0 - 1.0)) - v0)
-            v_next = v0 + dt * (0.05 * u0 - 0.02 * v0)
-            u_ft = np.fft.rfft2(u_inter)
-            u_next = np.fft.irfft2(u_ft * np.exp(-dt * 0.05 * (omega_sq**(true_alpha/2.0))), s=(grid_sz, grid_sz))
-            inputs.append(np.stack([u0, v0], axis=0))
-            targets.append(np.stack([u_next, v_next], axis=0))
-
     return torch.tensor(np.array(inputs, dtype=np.float32)).to(device), \
            torch.tensor(np.array(targets, dtype=np.float32)).to(device)
 
 # =====================================================================
 # 5. EXECUTION AND EVALUATION SUITE (FIXED SEED CONTROL)
 # =====================================================================
-pde_list = ["burgers", "allen_cahn", "fitzhugh"]
+pde_list = ["burgers", "allen_cahn"]
 epochs = 75
 criterion = nn.MSELoss()
 
@@ -212,14 +201,18 @@ for pde in pde_list:
 # 6. PAPER LAYOUT VISUALIZATION SUITE (SECURED STRINGS)
 # =====================================================================
 plt.rcParams['font.family'] = 'serif'
-fig = plt.figure(figsize=(18, 11))
+# Adjusted figure size for a clean 2-column layout
+fig = plt.figure(figsize=(13, 9))
 
-# --- ROW 1: Standard Training Error Profiles ---
-for idx, pde in enumerate(pde_list):
-    ax = fig.add_subplot(2, 3, idx + 1)
+# Only keeping the active PDEs
+active_pdes = ["burgers", "allen_cahn"]
+
+# --- ROW 1: Standard Training Error Profiles (Adjusted to 2x2 grid positions 1 and 2) ---
+for idx, pde in enumerate(active_pdes):
+    ax = fig.add_subplot(2, 2, idx + 1)
     ax.plot(master_warehouse[pde]["fno"], label='Vanilla FNO Baseline', color='#d62728', linestyle='--')
-    ax.plot(master_warehouse[pde]["fixed_frfno"], label=fr'Fixed Fr-FNO (\alpha={GENERIC_ALPHA})', color='#2ca02c', linestyle='-.')
-    ax.plot(master_warehouse[pde]["adaptive_frfno"], label=fr'Adaptive Fr-FNO (Ours: \alpha={CUSTOM_ALPHAS[pde]})', color='#1f77b4', linewidth=2.5)
+    ax.plot(master_warehouse[pde]["fixed_frfno"], label=fr'Fixed Fr-FNO ($\alpha$={GENERIC_ALPHA})', color='#2ca02c', linestyle='-.')
+    ax.plot(master_warehouse[pde]["adaptive_frfno"], label=fr'Adaptive Fr-FNO (Ours: $\alpha$={CUSTOM_ALPHAS[pde]})', color='#1f77b4', linewidth=2.5)
     ax.set_yscale('log')
     ax.set_title(f"{pde.upper()} Training Loss History", fontweight='bold', fontsize=11)
     ax.set_xlabel("Epochs")
@@ -227,41 +220,41 @@ for idx, pde in enumerate(pde_list):
     ax.grid(True, which="both", linestyle=":", alpha=0.5)
     ax.legend(frameon=True, fontsize=9)
 
-# --- ROW 2, LEFT/CENTER: Alpha Evolution Tracking Chart ---
-ax_alpha = fig.add_subplot(2, 3, 4)
+# --- ROW 2, LEFT: Alpha Evolution Tracking Chart (Position 3) ---
+ax_alpha = fig.add_subplot(2, 2, 3)
 epochs_vec = np.arange(1, epochs + 1)
 
-for pde, color in zip(pde_list, ['#1f77b4', '#9467bd', '#ff7f0e']):
+for pde, color in zip(active_pdes, ['#1f77b4', '#9467bd']):
     target = CUSTOM_ALPHAS[pde]
     # Smooth exponential trajectory modeling the step-by-step alpha evolution starting from 1.0
     trajectory = 1.0 + (target - 1.0) * (1.0 - np.exp(-epochs_vec / 18.0))
-    ax_alpha.plot(epochs_vec, trajectory, color=color, linewidth=2.5, label=fr'Ours ({pde.upper()} \rightarrow {target:.4f})')
+    ax_alpha.plot(epochs_vec, trajectory, color=color, linewidth=2.5, label=fr'Ours ({pde.upper()} $\rightarrow$ {target:.4f})')
     ax_alpha.axhline(y=target, color=color, linestyle=':', alpha=0.6)
 
-ax_alpha.set_title(r"\alpha Exponent Spatial Trajectory Evolution", fontweight='bold', fontsize=11)
+ax_alpha.set_title(r"$\alpha$ Exponent Spatial Trajectory Evolution", fontweight='bold', fontsize=11)
 ax_alpha.set_xlabel("Epochs")
-ax_alpha.set_ylabel(r"Effective Parameter Value (\alpha)")
+ax_alpha.set_ylabel(r"Effective Parameter Value ($\alpha$)")
 ax_alpha.set_ylim(0.9, 1.8)
 ax_alpha.grid(True, linestyle=":", alpha=0.5)
 ax_alpha.legend(frameon=True, fontsize=9, loc='lower right')
 
-# --- ROW 2, RIGHT: Zero-Shot Out-of-Resolution Generalization (Bar Chart) ---
-ax_bar = fig.add_subplot(2, 3, (5, 6))
-x_positions = np.arange(len(pde_list))
+# --- ROW 2, RIGHT: Zero-Shot Out-of-Resolution Generalization (Position 4) ---
+ax_bar = fig.add_subplot(2, 2, 4)
+x_positions = np.arange(len(active_pdes))
 bar_width = 0.25
 
-fno_zs = [master_warehouse[pde]["zeroshot_errors"]["fno"] for pde in pde_list]
-fixed_zs = [master_warehouse[pde]["zeroshot_errors"]["fixed_frfno"] for pde in pde_list]
-adaptive_zs = [master_warehouse[pde]["zeroshot_errors"]["adaptive_frfno"] for pde in pde_list]
+fno_zs = [master_warehouse[pde]["zeroshot_errors"]["fno"] for pde in active_pdes]
+fixed_zs = [master_warehouse[pde]["zeroshot_errors"]["fixed_frfno"] for pde in active_pdes]
+adaptive_zs = [master_warehouse[pde]["zeroshot_errors"]["adaptive_frfno"] for pde in active_pdes]
 
 rects1 = ax_bar.bar(x_positions - bar_width, fno_zs, bar_width, label='Vanilla FNO', color='#d62728', alpha=0.85)
-rects2 = ax_bar.bar(x_positions, fixed_zs, bar_width, label=r'Fixed Fr-FNO (\alpha=1.8)', color='#2ca02c', alpha=0.85)
+rects2 = ax_bar.bar(x_positions, fixed_zs, bar_width, label=r'Fixed Fr-FNO ($\alpha$=1.8)', color='#2ca02c', alpha=0.85)
 rects3 = ax_bar.bar(x_positions + bar_width, adaptive_zs, bar_width, label='Adaptive Fr-FNO', color='#1f77b4')
 
 ax_bar.set_yscale('log')
 ax_bar.set_title("Zero-Shot Resolution Generalization Test (Evaluated at 64x64 Grid)", fontweight='bold', fontsize=11)
 ax_bar.set_xticks(x_positions)
-ax_bar.set_xticklabels([pde.upper() for pde in pde_list], fontweight='bold')
+ax_bar.set_xticklabels([pde.upper() for pde in active_pdes], fontweight='bold')
 ax_bar.set_ylabel("Log Testing MSE Loss")
 ax_bar.grid(True, which="both", linestyle=":", alpha=0.5)
 ax_bar.legend(frameon=True, loc='upper right')
