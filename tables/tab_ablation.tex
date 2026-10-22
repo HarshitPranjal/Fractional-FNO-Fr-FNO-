@@ -1,0 +1,25 @@
+% Auto-generated Ablation and Parity Suite Table
+\begin{table*}[t]
+\centering
+\small
+\caption{Systematic Ablation Suite: Tuning Parity, Training Length, and Data Regime on S1 (Burgers) and S2 (Allen-Cahn) at $\alpha=1.2$ across Paired Seeds (Test Relative $L_2$ Error, Mean $\pm$ Std). Best performance in bold.}
+\label{tab:ablation}
+\begin{tabular}{lllcccc}
+\toprule
+Experiment & System & Setting & A0 (Vanilla) & A0-Tuned & Fractional & Fractional Arm \\
+\midrule
+Tuning Parity & S1 (Burgers) & $N=500$, 100 ep & 0.0549 \pm 0.0054 & \textbf{0.0389 \pm 0.0056} & 0.0549 \pm 0.0054 & A6i \\
+Tuning Parity & S2 (Allen-Cahn) & $N=500$, 100 ep & 0.0321 \pm 0.0012 & \textbf{0.0151 \pm 0.0011} & 0.0173 \pm 0.0009 & A6 \\
+\midrule
+Training Length & S1 (Burgers) & $N=500$, 100 ep & 0.0570 \pm 0.0051 & -- & 0.0570 \pm 0.0051 & A6i \\
+Training Length & S1 (Burgers) & $N=500$, 300 ep & 0.0256 \pm 0.0004 & -- & 0.0256 \pm 0.0004 & A6i \\
+Training Length & S1 (Burgers) & $N=500$, 100 ep & 0.0570 \pm 0.0051 & -- & 0.1093 \pm 0.0081 & A5 \\
+Training Length & S1 (Burgers) & $N=500$, 300 ep & 0.0256 \pm 0.0004 & -- & 0.0339 \pm 0.0015 & A5 \\
+\midrule
+Data Regime & S1 (Burgers) & $N=100$, 100 ep & 0.1083 \pm 0.0067 & -- & 0.1083 \pm 0.0067 & A6i \\
+Data Regime & S1 (Burgers) & $N=500$, 100 ep & 0.0549 \pm 0.0054 & -- & 0.0549 \pm 0.0054 & A6i \\
+Data Regime & S2 (Allen-Cahn) & $N=100$, 100 ep & 0.0616 \pm 0.0033 & -- & \textbf{0.0265 \pm 0.0025} & A6 \\
+Data Regime & S2 (Allen-Cahn) & $N=500$, 100 ep & 0.0321 \pm 0.0012 & -- & \textbf{0.0173 \pm 0.0009} & A6 \\
+\bottomrule
+\end{tabular}
+\end{table*}

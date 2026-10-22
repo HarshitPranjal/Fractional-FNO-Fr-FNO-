@@ -1,0 +1,21 @@
+% Auto-generated LaTeX table: T2 Ablation Ladder
+\begin{table*}[t]
+\centering
+\small
+\caption{\textbf{Ablation Ladder & Architectural Dissection.} Parameter counts, pooled relative $L^2$ error, and relative improvements vs Vanilla (A0) and Parameter-Matched (A1) baselines.}
+\label{tab:ablation_ladder}
+\begin{tabular}{llccccc}
+\toprule
+Arm & Architectural Formulation & Trainable & Total & Rel. $L^2$ (Mean $\pm$ Std) & $\Delta$ vs A0 (\%) & $p$-val vs A0 \\
+\midrule
+\textbf{A0} & Vanilla FNO baseline (4 Fourier blocks, width 64) & 287,361 & 287,425 & 0.0555 \pm 0.0562 & +0.00\% & $< 10^{-3}$ \\
+\textbf{A1} & Parameter-matched capacity control (+8 params vs A5) & 287,625 & 287,689 & 0.0660 \pm 0.0587 & +18.92\% & --- \\
+\textbf{A2} & Fixed Gaussian low-pass filter (frequency smoothing control) & 287,361 & 287,429 & 0.0659 \pm 0.0583 & +18.74\% & --- \\
+\textbf{A3} & Fixed fr-FNO filter (scalar $\alpha = 1.8$, paper heuristic) & 287,361 & 287,429 & 0.0939 \pm 0.0861 & +68.99\% & --- \\
+\textbf{A4} & Scalar adaptive fr-FNO (one global learnable $\alpha$) & 287,365 & 287,429 & 0.0862 \pm 0.0794 & +55.17\% & --- \\
+\textbf{A5} & Channel adaptive fr-FNO (channel-wise $\alpha_c$, paper proposal) & 287,617 & 287,681 & 0.0741 \pm 0.0747 & +33.40\% & $< 10^{-3}$ \\
+\textbf{A6} & True fractional operator ($\exp(-c_i |k|^{\alpha_i})$, physically identifiable) & 287,873 & 287,937 & 0.0593 \pm 0.0630 & +6.68\% & 1.708e-01 \\
+\textbf{A7} & Frozen channel-wise filter (random initial $\alpha_c$, initialization control) & 287,361 & 287,681 & 0.0887 \pm 0.0816 & +59.68\% & --- \\
+\bottomrule
+\end{tabular}
+\end{table*}

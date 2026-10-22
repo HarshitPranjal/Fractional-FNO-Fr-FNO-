@@ -1,0 +1,30 @@
+% Auto-generated Multi-Metric Table addressing Reviewer #1 Comment 5 and Reviewer #2 Comment 3
+\begin{table*}[t]
+\centering
+\small
+\caption{\textbf{Comprehensive Multi-Metric Benchmark Comparison.} Comparison across Relative ^2$ Error, Mean Squared Error (MSE), Symmetric MAPE (sMAPE), $\epsilon569Xregularized MAPE ($\text{MAPE}_\epsilon$), and Clamped Raw MAPE on Space-Fractional Burgers (S1) and Fractional Allen-Cahn (S2) at $\alpha=1.2$ ({\text{tr}}=500$, 100 epochs, Seed 42). Best values in \textbf{bold}.}
+\label{tab:reviewer_metrics}
+\begin{tabular}{llcccccr}
+\toprule
+System & Model Variant & Rel. ^2$ Error & MSE ($\times 10^{-4}$) & sMAPE (\%) & $\text{MAPE}_\epsilon$ (\%) & Raw MAPE\dagger$ (\%) & Trainable Params \
+\midrule
+\multirow{6}{*}{S1 (Burgers)} 
+ & $ (Default Vanilla FNO) & 0.0549 & 3.96 & 9.97\% & 9.74\% & 18.06\% & 287,361 \
+ & \textbf{Tuned-$ (Validation-Tuned)} & \textbf{0.0398} & \textbf{2.07} & \textbf{8.05\%} & \textbf{7.30\%} & \textbf{14.50\%} & 287,361 \
+ & $ (Fixed fr-FNO, $\alpha^*=0.4$) & 0.1081 & 15.33 & 17.73\% & 20.24\% & 40.05\% & 287,361 \
+ & $ (Adaptive fr-FNO, Paper) & 0.1049 & 14.42 & 16.81\% & 19.13\% & 38.03\% & 287,617 \
+ & $ (True Frac. Resolvent) & 0.0556 & 4.06 & 10.20\% & 9.75\% & 17.77\% & 287,873 \
+ & {6i}$ (Identity-Init Frac.) & 0.0549 & 3.96 & 9.97\% & 9.74\% & 18.06\% & 287,873 \
+\midrule
+\multirow{6}{*}{S2 (Allen-Cahn)} 
+ & $ (Default Vanilla FNO) & 0.0315 & 6.54 & 6.03\% & 6.18\% & 10.71\% & 287,361 \
+ & \textbf{Tuned-$ (Validation-Tuned)} & \textbf{0.0158} & \textbf{1.65} & \textbf{3.35\%} & \textbf{3.03\%} & \textbf{5.29\%} & 287,361 \
+ & $ (Fixed fr-FNO, $\alpha^*=1.2$) & 0.0180 & 2.13 & 3.68\% & 3.38\% & 6.26\% & 287,361 \
+ & $ (Adaptive fr-FNO, Paper) & 0.0190 & 2.38 & 3.86\% & 3.55\% & 6.24\% & 287,617 \
+ & $ (True Frac. Resolvent) & 0.0189 & 2.36 & 3.85\% & 3.51\% & 6.62\% & 287,873 \
+ & {6i}$ (Identity-Init Frac.) & 0.0315 & 6.54 & 6.03\% & 6.18\% & 10.70\% & 287,873 \
+\bottomrule
+\end{tabular}
+\vspace{1mm}
+\ \footnotesize{\dagger$ Raw MAPE clamped at $|y| \ge 10^{-4}$ to prevent singularity at zero-crossings. Unregularized raw MAPE diverges towards infinity on zero-crossing continuous fields.}
+\end{table*}

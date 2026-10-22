@@ -1,0 +1,19 @@
+% Auto-generated Zero-Shot Resolution Transfer Table
+\begin{table*}[t]
+\centering
+\small
+\caption{Zero-Shot Super-Resolution Generalization: Models trained at native resolution $N=256$ evaluated on exact spectral solutions at $N \in \{64, 128, 256, 512\}$ (Test Relative $L_2$ Error, Mean $\pm$ Std over 5 Seeds, $N_{\text{tr}}=500$, $\alpha=1.2$).}
+\label{tab:resolution}
+\begin{tabular}{llcccc}
+\toprule
+System & Arm & $N=64$ & $N=128$ & $N=256$ (Native) & $N=512$ \\
+\midrule
+S1 (Burgers) & \textbf{A0} & 0.0479 \pm 0.0030 & 0.0523 \pm 0.0055 & 0.0549 \pm 0.0054 & 0.0554 \pm 0.0053 \\
+S1 (Burgers) & \textbf{A5} & 0.1036 \pm 0.0083 & 0.1106 \pm 0.0081 & 0.1120 \pm 0.0080 & 0.1122 \pm 0.0080 \\
+S1 (Burgers) & \textbf{A6i} & 0.0479 \pm 0.0030 & 0.0523 \pm 0.0055 & 0.0549 \pm 0.0054 & 0.0554 \pm 0.0053 \\
+S2 (Allen-Cahn) & \textbf{A0} & 0.0358 \pm 0.0008 & 0.0321 \pm 0.0012 & 0.0321 \pm 0.0012 & 0.0321 \pm 0.0012 \\
+S2 (Allen-Cahn) & \textbf{A5} & 0.0247 \pm 0.0006 & 0.0167 \pm 0.0008 & 0.0177 \pm 0.0008 & 0.0177 \pm 0.0008 \\
+S2 (Allen-Cahn) & \textbf{A6i} & 0.0357 \pm 0.0008 & 0.0321 \pm 0.0012 & 0.0321 \pm 0.0012 & 0.0321 \pm 0.0012 \\
+\bottomrule
+\end{tabular}
+\end{table*}

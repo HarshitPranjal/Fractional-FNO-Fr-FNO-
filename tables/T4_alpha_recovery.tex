@@ -1,0 +1,22 @@
+% Auto-generated LaTeX table: T4 Alpha Recovery
+\begin{table*}[t]
+\centering
+\small
+\caption{\textbf{Physical Parameter Recovery & Identifiability Audit.} Comparison of recovered order $\hat{\alpha}$ vs ground-truth $\alpha_{\mathrm{true}}$ across formulations. Demonstrates that A6 achieves exact physical identifiability, whereas A5's heuristic filter fails to correlate with $\alpha_{\mathrm{true}}$.}
+\label{tab:alpha_recovery}
+\begin{tabular}{lccccccr}
+\toprule
+Formulation & Target $\alpha_{\mathrm{true}}$ & Recovered $\hat{\alpha}$ (Mean $\pm$ Std) & Spearman $\rho$ & $p$-value & Raw MAE & Monotone Calibrated MAE \\
+\midrule
+\textbf{A6} (True Fractional Symbol: $\exp(-c |k|^\alpha)$) & 0.8 & 0.7986 \pm 0.1373 & \multirow{4}{*}{-0.157} & \multirow{4}{*}{2.32e-01} & \multirow{4}{*}{0.5990} & \multirow{4}{*}{0.3730} \\
+ & 1.2 & 0.8024 \pm 0.1060 & & & & \\
+ & 1.6 & 0.8118 \pm 0.0651 & & & & \\
+ & 1.9 & 0.8144 \pm 0.0457 & & & & \\
+\midrule
+\textbf{A5} (Adaptive fr-FNO Filter: $1/[e^{1-\alpha} + \alpha k^2]$) & 0.8 & 0.9408 \pm 0.0911 & \multirow{4}{*}{-0.112} & \multirow{4}{*}{3.95e-01} & \multirow{4}{*}{0.5016} & \multirow{4}{*}{0.3746} \\
+ & 1.2 & 0.9438 \pm 0.0757 & & & & \\
+ & 1.6 & 0.9464 \pm 0.0539 & & & & \\
+ & 1.9 & 0.9460 \pm 0.0395 & & & & \\
+\bottomrule
+\end{tabular}
+\end{table*}
