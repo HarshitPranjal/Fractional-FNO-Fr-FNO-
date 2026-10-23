@@ -8,7 +8,7 @@
 \usepackage{textcomp}
 \usepackage{xcolor}
 \usepackage{fancyhdr}
-\usepackage{hyperref}
+\usepackage[hidelinks]{hyperref}
 \usepackage{booktabs}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,calc}
@@ -20,24 +20,24 @@
 \newcommand{\Fcal}{\mathcal{F}}
 
 \fancypagestyle{firstpage}{
-  \fancyhf{} % Clear header and footer
+  \fancyhf{}
   \fancyhead[C]{23rd Edition of IEEE India Council International Conference (INDICON 2026)}
   \fancyfoot[L]{%
       \begin{minipage}[t]{\textwidth}
       \normalsize{979-8-3195-2581-9/26/\$31.00\copyright2026 IEEE}
     \end{minipage}%
   }
-  \renewcommand{\headrulewidth}{0pt} % Remove the horizontal line
+  \renewcommand{\headrulewidth}{0pt}
 }
 
 \pagestyle{fancy}
-\fancyhf{} % Clear the default header and footer
+\fancyhf{}
 \fancyfoot[C]{INDICON 2026}
-\renewcommand{\headrulewidth}{0pt} % Remove the horizontal line
+\renewcommand{\headrulewidth}{0pt}
 
 \begin{document}
 
-\title{Adaptive Fractional Fourier Neural Operators for Learning Nonlocal PDE Dynamics}
+\title{Do Fractional Spectral Filters Help Fourier Neural Operators? A Controlled Ablation}
 
 \author{\IEEEauthorblockN{Harshit Pranjal}
 \IEEEauthorblockA{\textit{Dept. of Mathematics} \\
@@ -50,35 +50,31 @@ imh10019.24@bitmesra.ac.in}
 \thispagestyle{firstpage}
 
 \begin{abstract}
-Fourier neural operators (FNOs) parameterize solution operators of partial differential equations (PDEs) in Fourier space, but standard spectral layers lack an explicit parameterization of the nonlocal, power-law dissipation characteristic of fractional differential operators $(-\Delta)^{\alpha/2}$. We investigate whether incorporating learnable, channel-wise spectral filters into FNO layers provides an inductive bias for learning nonlocal dynamics. We evaluate a rational filter (fr-FNO-R), a power-law filter $\exp(-c|k|^\alpha)$, and a newly reformulated fractional Laplacian resolvent filter $(1+c|k/K|^\alpha)^{-1}$ with identity initialization (fr-FNO-L) against an expanded operator ladder: standard FNO, parameter-matched FNO, fixed Gaussian low-pass smoothing (FNO-G), and validation-tuned FNO. Across four benchmark PDEs (Space-Fractional Burgers, Fractional Allen--Cahn, Linear Fractional Diffusion, and Fractional Fisher--KPP) spanning four fractional orders $\alpha\in\{0.8, 1.2, 1.6, 1.9\}$, zero-shot super-resolution transfer across $N\in\{64, 128, 256, 512\}$, and repeated random seeds, we establish that: (1) the heuristic rational filter decays as $|k|^{-2}$ for every $\alpha$, so its parameter cannot represent fractional orders, whereas the resolvent filter strictly exhibits $\mathcal{O}(|k|^{-\alpha})$ roll-off; (2) when vanilla FNO is given equal validation hyperparameter tuning budget (Tuned-FNO), it matches or outperforms all fractional filter variants across 9 of 10 paired seed conditions ($p_{\mathrm{Holm}}=0.0156$); (3) gains on phase-field dynamics stem from generic low-pass regularization rather than learned fractional orders; and (4) unregularized Mean Absolute Percentage Error (MAPE) diverges on continuous zero-crossing PDE solutions, motivating symmetric and $\epsilon$-regularized percentage metrics. Finally, we introduce a model-agnostic linear-response probe that recovers effective dissipation exponents with a mean absolute error of $0.072$ on linear fractional diffusion.
+Fourier neural operators (FNOs) learn solution maps of partial differential equations in Fourier space, but their spectral layers contain no explicit fractional-order structure. This paper tests whether a learnable, channel-wise spectral filter intended to encode fractional-order dissipation improves an FNO. It is shown analytically that a rational filter proposed in earlier work decays quadratically for every order and can be absorbed into the spectral weights, whereas the exact fractional propagator carries the order. These filters and a resolvent filter are compared in a controlled ablation on fractional Burgers, fractional Allen--Cahn and linear fractional diffusion, using five paired seeds, a fixed split, per-arm tuning, Holm correction, and U-Net and DeepONet baselines. With default settings the filters raise the Burgers error by a factor of 1.6--2.2 and lower the Allen--Cahn error by 42--78\%. After tuning, the Allen--Cahn gain vanishes at order 1.2 and persists at order 0.8, but it is not significant after correction and shrinks with longer training and more data. Learning the order adds nothing over a fixed filter, and the learned orders do not track the true order. A linear-response probe recovers the exponent of linear fractional diffusion from an unfiltered FNO with a mean absolute error of 0.072, so exponent recovery is not evidence for the filter. Negative and inconclusive outcomes are reported as such.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Fourier neural operator, fractional PDE, operator learning, spectral filter, fractional Laplacian, resolution invariance
+Fourier neural operator, fractional PDE, operator learning, spectral filter, ablation, fractional Laplacian
 \end{IEEEkeywords}
 
 \section{Introduction}
-Neural operators learn mappings between infinite-dimensional function spaces and serve as fast, resolution-invariant surrogates for repeated numerical solves of partial differential equations (PDEs)~\cite{kovachki2023neural,lu2021learning}. The Fourier neural operator (FNO) parameterizes an integral kernel directly in the Fourier domain and maintains an efficient computational complexity of $\mathcal{O}(N\log N)$ per layer~\cite{li2021fourier,lu2022comprehensive}. In parallel, physics-informed methods embed governing equations directly into composite training losses~\cite{raissi2019physics,pang2019fpinns}.
+Neural operators learn mappings between function spaces and serve as fast surrogates for repeated PDE solves~\cite{kovachki2023neural,lu2021learning}. The Fourier neural operator (FNO) parameterizes an integral kernel in the Fourier domain at $\mathcal{O}(N\log N)$ cost per layer~\cite{li2021fourier,lu2022comprehensive}. Physics-informed methods instead embed the governing equation in the training loss~\cite{raissi2019physics,pang2019fpinns}.
 
-Fractional PDEs model anomalous diffusion, non-Fickian transport, and long-range particle interactions via the fractional Laplacian operator, whose Fourier symbol is $\|k\|^{\alpha}$ for order $\alpha \in (0, 2]$~\cite{podlubny1999fractional,metzler2000random,lischke2020fractional,kwasnicki2017ten}. Standard FNO layers learn unconstrained complex weights across truncated Fourier modes without incorporating the structural power-law dissipation of nonlocal operators. A natural hypothesis is to integrate learnable fractional spectral multipliers directly into the Fourier layer~\cite{mehouachi2026fractional}.
-
-In this paper, we present a rigorous, leak-free empirical and theoretical evaluation of adaptive fractional filtering in FNOs across four benchmark systems, four fractional orders, and four spatial resolutions. We make four primary contributions:
+Fractional PDEs describe anomalous diffusion and long-range interaction through the fractional Laplacian, whose Fourier symbol is $|k|^{\alpha}$ with $\alpha\in(0,2]$~\cite{podlubny1999fractional,metzler2000random,lischke2020fractional,kwasnicki2017ten}. A standard FNO layer learns unconstrained complex weights on a truncated set of modes and has no power-law structure built in. Inserting a learnable fractional spectral multiplier into the layer is therefore a natural idea~\cite{mehouachi2026fractional}. This paper asks whether such a multiplier improves accuracy once the comparison is controlled. The contributions are:
 \begin{enumerate}
-\item \textbf{Mathematical Formulation \& Reformulation:} We analyze the heuristic rational filter (fr-FNO-R) and prove that its asymptotic decay rate is fixed at $|k|^{-2}$ for all $\alpha$ (Proposition~\ref{prop:decay}). We reformulate the filter using the fractional Laplacian resolvent $(1 + c |k/K|^\alpha)^{-1}$ with identity initialization (fr-FNO-L, Proposition~\ref{prop:frac_decay}), ensuring that $\alpha$ strictly dictates the physical spectral decay rate $\mathcal{O}(|k|^{-\alpha})$.
-\item \textbf{Comprehensive Operator Benchmark Ladder:} We evaluate an expanded ladder of baselines beyond vanilla FNO, including parameter-matched FNO (A1), fixed Gaussian smoothing (A2), fixed fr-FNO (A3), paper adaptive filter (A5), true fractional resolvent (A6/A6i), frozen filter controls (A7), and validation-tuned FNO.
-\item \textbf{Rigorous Statistical Validation \& Parity Audit:} Over five repeated seeds, we evaluate training sizes ($N_{\mathrm{tr}} = 100$ vs. $500$) and training duration (100 vs. 300 epochs). We show that when vanilla FNO is given equal hyperparameter validation tuning, it eliminates the apparent fractional advantage ($p_{\mathrm{Holm}} = 0.0156$).
-\item \textbf{Resolution Generalization \& Metric Clarification:} We demonstrate zero-shot super-resolution generalization from $N=256$ to $N \in \{64, 128, 256, 512\}$. We clarify why raw MAPE is ill-posed on zero-crossing physical fields, and report Symmetric MAPE (sMAPE) and $\epsilon$-regularized MAPE. Finally, our linear-response probe recovers the ground-truth order on linear fractional diffusion with a mean absolute error (MAE) of $0.072$.
+\item \textbf{Analysis.} The rational filter $1/(e^{1-\alpha}+\alpha k^2)$ decays as $k^{-2}$ for every $\alpha$, so $\alpha$ is a scale parameter and not a fractional order, whereas $\exp(-\beta|k|^{\alpha})$ encodes $\alpha$. Any positive filter is absorbable into the spectral weights, so it changes optimization and not expressivity.
+\item \textbf{Controlled ablation.} Sixteen arms (Table~\ref{tab:arms}) are compared on three PDE systems with paired seeds, frozen-filter and initialization controls, pre-specified decision rules, per-arm tuning, longer training, more data, higher orders, Holm-corrected tests, and U-Net and DeepONet baselines.
+\item \textbf{Probe and findings.} A linear-response probe recovers the dissipation exponent equally well from an unfiltered FNO. Filters degrade accuracy on Burgers and improve it on Allen--Cahn at default settings, but after tuning the Allen--Cahn gain vanishes at $\alpha=1.2$ and is not significant at $\alpha=0.8$.
 \end{enumerate}
 
-\section{Methodology}
-
+\section{Method}
 \subsection{Filtered Fourier Layer}
-Let $v_l(x)$ denote the latent field at layer $l \in \{1, \dots, L\}$ with $C$ channels. A filtered Fourier layer computes:
+Let $v_l$ be the latent field at layer $l$ with $C$ channels. A filtered Fourier layer computes
 \begin{equation}
-v_{l+1} = \sigma\!\left(W v_l + \Fcal^{-1}\!\left(R_\phi\,\Psi\,\Fcal v_l\right)\right),
+v_{l+1}=\sigma\!\left(W v_l+\Fcal^{-1}\!\left(R_\phi\,\Psi\,\Fcal v_l\right)\right),
 \label{eq:layer}
 \end{equation}
-where $W \in \mathbb{R}^{C \times C}$ is a pointwise linear map, $R_\phi(k) \in \mathbb{C}^{C \times C}$ denotes learnable spectral weights on the lowest $M$ modes, and $\Psi_i(k)$ is a channel-wise spectral attenuation filter applied to input channel $i$. Setting $\Psi \equiv 1$ recovers the standard FNO. Fig.~\ref{fig:arch} illustrates the architecture. All spectral computations use integer wavenumbers $k \in \{0, 1, \dots, M-1\}$ on the periodic domain $[0, 2\pi)$.
+where $W\in\mathbb{R}^{C\times C}$ is a pointwise map, $R_\phi(k)\in\mathbb{C}^{C\times C}$ are learnable weights on the lowest $M$ modes, and $\Psi_i(k)$ is a filter applied to input channel $i$. Setting $\Psi\equiv 1$ gives the standard FNO. Wavenumbers are the integers $k\in\{0,\dots,M-1\}$ on the periodic domain $[0,2\pi)$. Fig.~\ref{fig:arch} shows the layer.
 
 \begin{figure}[t]
 \centering
@@ -98,254 +94,307 @@ where $W \in \mathbb{R}^{C \times C}$ is a pointwise linear map, $R_\phi(k) \in 
 \draw[->] (r)--(fi); \draw[->] (fi)--(plus); \draw[->] (plus)--(act); \draw[->] (act)--(vo);
 \draw[->] (v) |- (w); \draw[->] (w) -| (plus);
 \end{tikzpicture}
-\caption{Filtered Fourier layer. The shaded block represents the adaptive channel-wise spectral filter $\Psi_i(k)$ inserted prior to spectral convolution.}
+\caption{Filtered Fourier layer. The shaded block is the channel-wise spectral filter $\Psi_i(k)$ applied before the spectral convolution.}
 \label{fig:arch}
 \end{figure}
 
-\subsection{Filter Families \& Mathematical Formulations}\label{sec:filters}
-All filters operate channel-wise, parameterized with $\alpha_i = 2\,\mathrm{sigmoid}(\hat\alpha_i) \in (0, 2)$.
-
-\emph{1) Heuristic Rational Filter (fr-FNO-R):}
+\subsection{Filters}\label{sec:filters}
+All adaptive filters use one parameter set per channel and block, with $\alpha_i=2\,\mathrm{sigmoid}(\hat\alpha_i)\in(0,2)$ initialized at $\alpha_i=1$, a $10\times$ learning rate and no weight decay. The \emph{rational filter} from earlier work is
 \begin{equation}
-\Psi_i(k) = \frac{1}{e^{1-\alpha_i} + \alpha_i \left(\frac{k}{M}\right)^2}.
+\Psi_i(k)=\frac{1}{e^{1-\alpha_i}+\alpha_i k^{2}}.
 \label{eq:rational}
 \end{equation}
-
-\emph{2) Power-Law Propagator (fr-FNO-P):}
+The \emph{fractional symbol} is the exact propagator form
 \begin{equation}
-\Psi_i(k) = \exp\!\left(-c_i\,|k|^{\alpha_i}\right),\quad c_i = \mathrm{softplus}(\hat c_i) > 0,
+\Psi_i(k)=\exp\!\left(-\beta_i\,|k|^{\alpha_i}\right),\qquad \beta_i=\mathrm{softplus}(\hat\beta_i)>0 .
 \label{eq:power}
 \end{equation}
-with $\Psi_i(0) = 1$. When $c_i = \nu T$, this corresponds to the analytical propagator for linear fractional diffusion $u_t = -\nu(-\Delta)^{\alpha/2}u$ over interval $T$.
-
-\emph{3) Reformulated Fractional Resolvent Filter (fr-FNO-L):}
-To directly enforce that $\alpha$ controls the asymptotic spectral roll-off, we derive a filter from the stationary fractional resolvent equation $(I + c(-\Delta)^{\alpha/2})u = f$:
+For $\beta=\nu T$ this is the exact propagator of $u_t=-\nu(-\Delta)^{\alpha/2}u$ over time $T$. Arm A6 initializes $\beta=\ln 2$ and $\alpha=1$; arm A6i uses the scaled wavenumber $k/M$ and $\beta=10^{-3}$, so that $\Psi\approx 1$ at step zero. The \emph{Gaussian low-pass control} is
 \begin{equation}
-\Psi_i(k) = \frac{1}{1 + c_i \left|\frac{k}{M}\right|^{\alpha_i}},\quad c_i = \mathrm{softplus}(\hat c_i) > 0.
-\label{eq:resolvent}
+\Psi(k)=\exp\!\left(-\frac{k^2}{2\sigma^2}\right),
+\label{eq:gauss}
 \end{equation}
-To prevent optimization divergence and high-frequency choking, we introduce \emph{Identity Initialization} (fr-FNO-ID / Arm A6i), setting $\hat c_i$ such that $c_i \approx 10^{-3}$ and $\alpha_i \approx 1.0$, which guarantees $\Psi_i(k) \approx 1$ at step 0.
-
-\emph{4) Gaussian Smoothing Control (FNO-G):} $\Psi(k) = \exp(-k^2 / 2\sigma^2)$ with $\sigma \in \{2, 4, 8, 16\}$ selected via validation error.
+with $\sigma\in\{2,4,8,16\}$ chosen on the validation set. At initialization the adaptive filters are strongly low-pass on the retained modes: at $k=15$ the attenuation is 47\,dB for the rational filter at $\alpha=1$ (A5), 52\,dB for the fixed rational filter at $\alpha=1.8$ (A3) and 90\,dB for the fractional symbol with $\beta=\ln 2$ (A6). The spectral weights must compensate, which is why A6i was added.
 
 \section{Theoretical Analysis}
 
-\begin{proposition}[Fixed Quadratic Roll-Off of Rational Filter]\label{prop:decay}
-For every $\alpha > 0$, the rational filter~\eqref{eq:rational} satisfies $0 < \Psi(k) \le e^{\alpha-1}$, is monotonically decreasing in $|k|$, and satisfies:
+\begin{proposition}[Fixed quadratic roll-off]\label{prop:decay}
+For every $\alpha>0$ the rational filter~\eqref{eq:rational} satisfies $0<\Psi(k)\le e^{\alpha-1}$, decreases monotonically in $k\ge0$, and
 \begin{equation}
-\lim_{k \to \infty} \frac{\log \Psi(k)}{\log k} = -2.
+\lim_{k\to\infty}\frac{\log\Psi(k)}{\log k}=-2 .
+\label{eq:slope}
 \end{equation}
-The asymptotic decay rate is $|k|^{-2}$ independent of $\alpha$.
 \end{proposition}
 \begin{proof}
-The denominator satisfies $e^{1-\alpha} + \alpha (k/M)^2 \ge e^{1-\alpha} > 0$. For $k > 0$, the derivative with respect to $k$ is $-2\alpha k M^{-2} [e^{1-\alpha} + \alpha (k/M)^2]^{-2} < 0$, establishing monotonicity. For large $k$, $\alpha (k/M)^2$ strictly dominates $e^{1-\alpha}$, yielding $\Psi(k) \sim M^2 \alpha^{-1} k^{-2}$.
+The denominator is at least $e^{1-\alpha}>0$, which gives the bound, attained at $k=0$. The derivative is $-2\alpha k\,[e^{1-\alpha}+\alpha k^2]^{-2}<0$ for $k>0$, and $\Psi(k)=(\alpha k^2)^{-1}(1+o(1))$ for large $k$.
 \end{proof}
-Proposition~\ref{prop:decay} demonstrates that $\alpha$ in~\eqref{eq:rational} acts primarily as a gain-scaling and knee-frequency shift parameter, but does not dictate a fractional spectral decay exponent.
+By Proposition~\ref{prop:decay} and~\eqref{eq:slope}, $\alpha$ in~\eqref{eq:rational} sets a gain and a knee frequency, not a decay exponent. Fig.~\ref{fig:decay} (left) shows slope $-2$ for all $\alpha$.
 
-\begin{proposition}[Fractional Spectral Decay of Resolvent Filter]\label{prop:frac_decay}
-For any $\alpha \in (0, 2]$ and $c > 0$, the reformulated resolvent filter~\eqref{eq:resolvent} satisfies:
-\begin{equation}
-\lim_{k \to \infty} \frac{\log \Psi(k)}{\log k} = -\alpha.
-\end{equation}
+\begin{proposition}[Exact fractional propagator]\label{prop:frac}
+Let $u$ solve $u_t=-\nu(-\Delta)^{\alpha/2}u$ on the periodic domain. Then $\hat u(k,T)=\exp(-\nu T|k|^{\alpha})\,\hat u(k,0)$. Consequently $\log(-\log\Psi(k))=\log\beta+\alpha\log k$ for the symbol~\eqref{eq:power}, and the order $\alpha$ is the log--log slope of $-\log\Psi$.
 \end{proposition}
 \begin{proof}
-For $k \gg M$, $c (k/M)^\alpha \gg 1$. Thus, $\Psi(k) = [1 + c (k/M)^\alpha]^{-1} \sim c^{-1} M^\alpha k^{-\alpha}$. Taking logarithms yields $\log \Psi(k) = -\alpha \log k - \log c + \alpha \log M + o(1)$, which establishes the limit.
+The symbol of $(-\Delta)^{\alpha/2}$ is $|k|^{\alpha}$, so each mode obeys $\hat u_t=-\nu|k|^{\alpha}\hat u$. Taking logarithms twice gives the second statement.
 \end{proof}
-Fig.~\ref{fig:decay} verifies this contrast: while the rational filter roll-off is permanently constrained to slope $-2$, the reformulated filter varies as $-\alpha$, matching the fractional Laplacian.
+By Proposition~\ref{prop:frac}, a hand-constructed arm A6 with unit spectral weights reproduces the exact linear-diffusion solution to a relative error of $5.5\times10^{-6}$, so the hypothesis class contains the true operator for system S3.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.98\columnwidth]{fig_spectral_decay_comparison.pdf}
-\caption{Log-log spectral attenuation curves comparing the rational filter $\Psi_{\mathrm{orig}}$ (left, fixed slope of $-2$ across all $\alpha$) versus the reformulated resolvent filter $\Psi_{\mathrm{true}}$ (right, slope dynamically scales with $-\alpha$).}
+\caption{Left: the rational filter has log--log slope $-2$ at large $k$ for every $\alpha$. Right: for the fractional symbol the quantity $-\log\Psi$ has slope $\alpha$.}
 \label{fig:decay}
 \end{figure}
 
-\begin{proposition}[Hypothesis Class Equivalence]\label{prop:absorb}
-Let $\Psi_i(k) > 0$ for all $i, k$ be fixed. The set of functions realizable by layer~\eqref{eq:layer} with filter $\Psi$ is identical to the set realizable with $\Psi \equiv 1$.
+\begin{proposition}[Hypothesis-class equivalence]\label{prop:absorb}
+Let $\Psi_i(k)>0$ be fixed. The functions realizable by layer~\eqref{eq:layer} with filter $\Psi$ coincide with those realizable with $\Psi\equiv1$.
 \end{proposition}
 \begin{proof}
-The filter acts via elementwise scaling on channel $i$ at mode $k$: $[R_\phi(k) \Psi(k)]_{oi} = R_{oi}(k) \Psi_i(k) = R'_{oi}(k)$. Since $\Psi_i(k) > 0$, the mapping $R_{oi}(k) \mapsto R'_{oi}(k)$ is a linear bijection on $\mathbb{C}^{C \times C}$.
+The filter scales input channel $i$ at mode $k$, so $[R_\phi(k)\Psi(k)]_{oi}=R_{oi}(k)\Psi_i(k)=:R'_{oi}(k)$, and $R\mapsto R'$ is a bijection of $\mathbb{C}^{C\times C}$ because $\Psi_i(k)>0$.
 \end{proof}
-Proposition~\ref{prop:absorb} confirms that channel-wise spectral filtering alters the optimization trajectory and inductive bias, rather than enlarging the representational capacity of the network.
+By Proposition~\ref{prop:absorb}, a multiplicative filter therefore changes the optimization geometry and initial scale of the spectral weights and not the function class. Whether this reparametrization explains the effects in Section~\ref{sec:results} is not isolated by the experiments here.
 
 \section{Linear-Response Spectral Probe}
-To quantify the effective spectral dissipation learned by a trained operator, we apply a linear-response probe around test inputs. For a test input $a$ and wavenumber $k$, we apply harmonic perturbations $a \mapsto a + \varepsilon \sin(kx)$ and measure the perturbation response gain:
+To read off the dissipation a trained operator $\mathcal{G}_\Theta$ has learned, we perturb test inputs $a$ by $\varepsilon\sin(kx)$ and compute the gain $g(k)$ in~\eqref{eq:gain},
 \begin{equation}
-g(k) = \left\langle \frac{\bigl|\widehat{\mathcal{G}_\Theta(a + \varepsilon\sin kx)}(k) - \widehat{\mathcal{G}_\Theta(a)}(k)\bigr|}{\varepsilon\,|\widehat{\sin kx}(k)|} \right\rangle_{a}.
+g(k)=\left\langle\frac{\bigl|\widehat{\mathcal{G}_\Theta(a+\varepsilon\sin kx)}(k)-\widehat{\mathcal{G}_\Theta(a)}(k)\bigr|}{\varepsilon\,|\widehat{\sin kx}(k)|}\right\rangle_{a},
 \label{eq:gain}
 \end{equation}
-Linearity is verified by confirming invariance across $\varepsilon = 10^{-3}$ and $2\times 10^{-3}$ (relative discrepancy $< 10^{-4}$). We then fit:
+averaged over test inputs at $\varepsilon=10^{-3}$ and $2\times10^{-3}$ to check linearity. We then fit the model~\eqref{eq:fit},
 \begin{equation}
-\log g(k) = \log C - c_{\mathrm{eff}}\,k^{\alpha_{\mathrm{eff}}}
+\log g(k)=\log C-\beta_{\mathrm{eff}}\,k^{\alpha_{\mathrm{eff}}},
 \label{eq:fit}
 \end{equation}
-over modes where the product of gain and input power exceeds $10^{-3}$ of its maximum. Evaluated on the analytical propagator, the probe recovers $\alpha_{\mathrm{eff}} = \alpha_{\mathrm{true}}$, $c_{\mathrm{eff}} = 0.1000$, and $R^2 = 1.0$.
+over modes where gain times input energy exceeds $10^{-3}$ of its maximum. Applied to the exact propagator, the probe returns $\alpha_{\mathrm{eff}}=\alpha_{\mathrm{true}}$. It reads the learned map and is independent of the architecture.
 
-\section{Experimental Setup}
+\section{Experimental Protocol}
 
-\subsection{Benchmark Datasets \& Solvers}
-We evaluate models across four PDE systems on the periodic domain $[0, 2\pi)$ at native resolution $N=256$:
-\begin{itemize}
-\item \textbf{S1 (Space-Fractional Burgers):} $\partial_t u + u \partial_x u + \nu (-\Delta)^{\alpha/2} u = 0$, modeling nonlocal shock formation with $\nu=0.1$.
-\item \textbf{S2 (Fractional Allen--Cahn):} $\partial_t u + \kappa (-\Delta)^{\alpha/2} u - u + u^3 = 0$, modeling phase-field transitions with $\kappa=0.01$.
-\item \textbf{S3 (Linear Fractional Diffusion):} $\partial_t u + \nu (-\Delta)^{\alpha/2} u = 0$, solved analytically via Fourier symbol decay $\exp(-\nu |k|^\alpha T)$ with $\nu=0.1, T=1.0$.
-\item \textbf{S4 (Fractional Fisher--KPP):} $\partial_t u + \kappa (-\Delta)^{\alpha/2} u - r u(1-u) = 0$, modeling front propagation with $\kappa=0.01, r=1.0$.
-\end{itemize}
-Initial conditions are drawn from Gaussian random fields $u_0 \sim \mathcal{GP}(0, (-\Delta + 9I)^{-2})$ and harmonic wave-packets. High-fidelity reference solutions are generated using pseudo-spectral integrating-factor ETD-RK4 solvers at $N_{\mathrm{ref}} = 512$ with $\Delta t = 5\times 10^{-4}$ and $2/3$-rule de-aliasing, achieving self-convergence errors $< 10^{-5}$.
+\subsection{Systems and Data}
+All systems live on $[0,2\pi)$ with $N=256$ grid points and final time $T=1$. S1 is fractional Burgers, $u_t+uu_x+\nu(-\Delta)^{\alpha/2}u=0$ with $\nu=0.1$. S2 is fractional Allen--Cahn, $u_t+\epsilon^{2}(-\Delta)^{\alpha/2}u-u+u^3=0$ with $\epsilon^{2}=0.01$. S3 is linear fractional diffusion, $u_t+\nu(-\Delta)^{\alpha/2}u=0$ with $\nu=0.1$ and exact solution $\exp(-\nu|k|^{\alpha}T)$. S3 uses $\alpha\in\{0.8,1.2,1.6,1.9\}$; S1 and S2 use $\alpha\in\{0.8,1.2\}$ in the main study and $\{1.6,1.9\}$ in a high-order tier. Initial conditions are zero-mean Gaussian random fields with covariance $(-\Delta+9I)^{-2}$, standardized to unit variance and mapped to $0.5u_0$ (S1), $\tanh u_0$ (S2) and $u_0$ (S3). Nonlinear systems use Strang splitting with an exact spectral step for the fractional term, an RK4 step for the nonlinear terms, 2/3-rule dealiasing and $\Delta t=10^{-3}$ (S2). S1 targets are computed at $N=512$, $\Delta t=5\times10^{-4}$ and spectrally truncated to 256 points.
 
-\emph{Data Splits:} We enforce strict leak-free splits: test indices 1000--1199 (200 samples) and validation indices 900--999 (100 samples) remain fixed across all runs. Seed-dependent disjoint subsets of size $N_{\mathrm{tr}} \in \{100, 500\}$ are drawn from indices 0--899.
+\emph{Solver accuracy.} For S2 and S3 the spatial error is below 0.13\%, and halving $\Delta t$ changes the S1 and S2 solutions by $2.2\times10^{-4}$ and $3.0\times10^{-4}$ (relative). S1 is less well resolved at low order: the relative difference between $N=512$ and $N=1024$ is 20.2\%$\pm$9.2\% at $\alpha=0.8$ and 2.9\%$\pm$1.9\% at $\alpha=1.2$, but only $4.2\times10^{-5}$ and $3.4\times10^{-5}$ at $\alpha=1.6$ and $1.9$. Low-order S1 results therefore describe learning the discretized $N=512$ map and not the continuous PDE.
 
-\subsection{Model Architecture \& Training}
-All models share a common backbone: lifting layer ($1 \to 64$), four Fourier layers with width 64 and $M=16$ modes, GELU activations, and a two-layer projection ($64 \to 128 \to 1$). Models have $\sim 2.87 \times 10^5$ parameters. Optimization uses AdamW with cosine annealing over 100 epochs (extended to 300 epochs in training length ablations), batch size 50 ($N_{\mathrm{tr}}=100$) or 125 ($N_{\mathrm{tr}}=500$), and weight decay $10^{-4}$. Filter parameters use a $10\times$ learning rate multiplier without weight decay.
+\emph{Splits.} Test indices 1000--1199 (200 samples) and validation indices 900--999 (100 samples) are fixed. Training sets of 100, 500 or 900 samples are drawn by seed from indices 0--899. The seeds are 42, 123, 999, 2024 and 2025, shared by all arms.
 
-\subsection{Evaluation Metrics}
-The primary metric is the relative $L^2$ test error: $\|u - \hat u\|_2 / \|u\|_2$. Because continuous PDE fields exhibit zero-crossings ($u(x) = 0$), unregularized raw MAPE $\frac{100\%}{N}\sum |(u_i - \hat u_i)/u_i|$ diverges toward infinity. We therefore report:
-\begin{itemize}
-\item \textbf{Symmetric MAPE (sMAPE):} $\frac{100\%}{N}\sum \frac{2|u_i - \hat u_i|}{|u_i| + |\hat u_i| + 10^{-6}}$.
-\item \textbf{$\epsilon$-Regularized MAPE ($\text{MAPE}_\epsilon$):} $\frac{100\%}{N}\sum \frac{|u_i - \hat u_i|}{|u_i| + 0.01\,\mathrm{std}(u)}$.
-\end{itemize}
-
-\section{Experimental Results}
-
-\subsection{Multi-Metric Performance Across Operators}
-Table~\ref{tab:metrics} reports test relative $L^2$ error, MSE, sMAPE, $\text{MAPE}_\epsilon$, clamped raw MAPE, and parameter counts on S1 (Burgers) and S2 (Allen--Cahn) at $\alpha=1.2$. 
-When vanilla FNO is tuned on validation data ($\text{lr}^*=3\times 10^{-3}, \text{wd}^*=0$ on S1; $\text{lr}^*=3\times 10^{-3}, \text{wd}^*=10^{-4}$ on S2), \textbf{Tuned-FNO achieves the lowest error across all metrics on both PDEs} ($0.0398$ vs. $0.0549$ on Burgers; $0.0158$ vs. $0.0189$ on Allen--Cahn). Clamped raw MAPE is inflated by $\sim 1.8\times$ over sMAPE due to near-zero denominators.
-
-\begin{table*}[t]
-\centering
-\caption{Comprehensive Multi-Metric Benchmark Comparison across Relative $L^2$ Error, Mean Squared Error (MSE), Symmetric MAPE (sMAPE), $\epsilon$-regularized MAPE ($\text{MAPE}_\epsilon$), Clamped Raw MAPE, Parameter Count, and Training Time on Space-Fractional Burgers (S1) and Fractional Allen--Cahn (S2) at $\alpha=1.2$ ($N_{\text{tr}}=500$, 100 epochs, Seed 42). Best values in \textbf{bold}.}
-\label{tab:metrics}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{llcccccrc}
-\toprule
-System & Model Variant & Rel. $L^2$ Error & MSE ($\times 10^{-4}$) & sMAPE (\%) & $\text{MAPE}_\epsilon$ (\%) & Raw MAPE$^\dagger$ (\%) & Trainable Params & Train Time (s) \\
-\midrule
-S1 (Burgers) 
- & $A_0$ (Default Vanilla FNO) & 0.0549 & 3.96 & 9.97\% & 9.74\% & 18.06\% & 287,361 & 11.5 \\
- & \textbf{Tuned-$A_0$ (Validation-Tuned)} & \textbf{0.0398} & \textbf{2.07} & \textbf{8.05\%} & \textbf{7.30\%} & \textbf{14.50\%} & 287,361 & 13.9 \\
- & $A_3$ (Fixed fr-FNO, $\alpha^*=0.4$) & 0.1081 & 15.33 & 17.73\% & 20.24\% & 40.05\% & 287,361 & 14.9 \\
- & $A_5$ (Adaptive fr-FNO, Paper) & 0.1049 & 14.42 & 16.81\% & 19.13\% & 38.03\% & 287,617 & 11.7 \\
- & $A_6$ (True Frac. Resolvent) & 0.0556 & 4.06 & 10.20\% & 9.75\% & 17.77\% & 287,873 & 12.1 \\
- & $A_{6i}$ (Identity-Init Frac.) & 0.0549 & 3.96 & 9.97\% & 9.74\% & 18.06\% & 287,873 & 15.1 \\
-\midrule
-S2 (Allen--Cahn) 
- & $A_0$ (Default Vanilla FNO) & 0.0315 & 6.54 & 6.03\% & 6.18\% & 10.71\% & 287,361 & 11.5 \\
- & \textbf{Tuned-$A_0$ (Validation-Tuned)} & \textbf{0.0158} & \textbf{1.65} & \textbf{3.35\%} & \textbf{3.03\%} & \textbf{5.29\%} & 287,361 & 13.9 \\
- & $A_3$ (Fixed fr-FNO, $\alpha^*=1.2$) & 0.0180 & 2.13 & 3.68\% & 3.38\% & 6.26\% & 287,361 & 14.9 \\
- & $A_5$ (Adaptive fr-FNO, Paper) & 0.0190 & 2.38 & 3.86\% & 3.55\% & 6.24\% & 287,617 & 11.7 \\
- & $A_6$ (True Frac. Resolvent) & 0.0189 & 2.36 & 3.85\% & 3.51\% & 6.62\% & 287,873 & 12.1 \\
- & $A_{6i}$ (Identity-Init Frac.) & 0.0315 & 6.54 & 6.03\% & 6.18\% & 10.70\% & 287,873 & 15.1 \\
-\bottomrule
-\end{tabular}%
-}
-\vspace{1mm}
-\\ \footnotesize{$^\dagger$ Raw MAPE clamped at $|y| \ge 10^{-4}$ to prevent singularity at zero-crossings. Unregularized raw MAPE diverges on continuous zero-crossing fields.}
-\end{table*}
-
-\subsection{Tuning Parity, Training Length, and Data Regimes}
-Table~\ref{tab:ablation} presents comprehensive ablations across seeds:
-\begin{itemize}
-\item \textbf{Tuning Parity:} Giving FNO validation tuning reduces error by $29.1\%$ on Burgers ($0.0389 \pm 0.0056$) and by $53.0\%$ on Allen--Cahn ($0.0151 \pm 0.0011$), outperforming all fractional variants across 9 of 10 paired seeds ($p_{\mathrm{Holm}} = 0.0156$, Wilcoxon).
-\item \textbf{Training Length:} Extending training to 300 epochs narrows the performance gap between $A_5$ and $A_0$ from $+91.8\%$ to $+32.4\%$, while $A_{6i}$ tracks $A_0$ identically at both 100 epochs ($0.0570$) and 300 epochs ($0.0256$).
-\item \textbf{Data Regime:} At $N_{\mathrm{tr}} = 100$, fractional operators yield zero advantage on Burgers ($A_5$ degrades error by $+66.2\%$, while $A_{6i}$ matches $A_0$). On Allen--Cahn, the relative error margin over default FNO remains consistent across sample sizes ($57\%$ at $N=100$, $46\%$ at $N=500$), demonstrating that fractional filtering provides no sample-efficiency gain exclusive to small-$N$ regimes.
-\end{itemize}
-
-\begin{table*}[t]
-\centering
-\caption{Systematic Ablation Suite: Tuning Parity, Training Length, and Data Regime on S1 (Burgers) and S2 (Allen--Cahn) at $\alpha=1.2$ across Paired Seeds (Test Relative $L_2$ Error, Mean $\pm$ Std over 5 Seeds). Best performance in \textbf{bold}.}
-\label{tab:ablation}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{lllcccc}
-\toprule
-Experiment & System & Setting & A0 (Vanilla) & A0-Tuned & Fractional & Fractional Arm \\
-\midrule
-Tuning Parity & S1 (Burgers) & $N=500$, 100 ep & $0.0549 \pm 0.0054$ & $\mathbf{0.0389 \pm 0.0056}$ & $0.0549 \pm 0.0054$ & A6i \\
-Tuning Parity & S2 (Allen--Cahn) & $N=500$, 100 ep & $0.0321 \pm 0.0012$ & $\mathbf{0.0151 \pm 0.0011}$ & $0.0173 \pm 0.0009$ & A6 \\
-\midrule
-Training Length & S1 (Burgers) & $N=500$, 100 ep & $0.0570 \pm 0.0051$ & -- & $0.0570 \pm 0.0051$ & A6i \\
-Training Length & S1 (Burgers) & $N=500$, 300 ep & $\mathbf{0.0256 \pm 0.0004}$ & -- & $\mathbf{0.0256 \pm 0.0004}$ & A6i \\
-Training Length & S1 (Burgers) & $N=500$, 100 ep & $0.0570 \pm 0.0051$ & -- & $0.1093 \pm 0.0081$ & A5 \\
-Training Length & S1 (Burgers) & $N=500$, 300 ep & $\mathbf{0.0256 \pm 0.0004}$ & -- & $0.0339 \pm 0.0015$ & A5 \\
-\midrule
-Data Regime & S1 (Burgers) & $N=100$, 100 ep & $\mathbf{0.1083 \pm 0.0067}$ & -- & $\mathbf{0.1083 \pm 0.0067}$ & A6i \\
-Data Regime & S1 (Burgers) & $N=500$, 100 ep & $0.0549 \pm 0.0054$ & -- & $0.0549 \pm 0.0054$ & A6i \\
-Data Regime & S2 (Allen--Cahn) & $N=100$, 100 ep & $0.0616 \pm 0.0033$ & -- & $\mathbf{0.0265 \pm 0.0025}$ & A6 \\
-Data Regime & S2 (Allen--Cahn) & $N=500$, 100 ep & $0.0321 \pm 0.0012$ & -- & $\mathbf{0.0173 \pm 0.0009}$ & A6 \\
-\bottomrule
-\end{tabular}%
-}
-\end{table*}
-
-\subsection{Zero-Shot Super-Resolution Generalization}
-Table~\ref{tab:resolution} evaluates zero-shot mesh transfer for models trained strictly at native resolution $N=256$. Test relative $L^2$ error remains flat across resolutions from $N=64$ to $512$, confirming that adaptive fractional layers preserve the mesh-independence of Fourier neural operators.
-
-\begin{table*}[t]
-\centering
-\caption{Zero-Shot Super-Resolution Generalization: Models trained at native resolution $N=256$ evaluated on exact spectral solutions at $N \in \{64, 128, 256, 512\}$ (Test Relative $L_2$ Error, Mean $\pm$ Std over 5 Seeds, $N_{\text{tr}}=500$, $\alpha=1.2$).}
-\label{tab:resolution}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{llcccc}
-\toprule
-System & Arm & $N=64$ & $N=128$ & $N=256$ (Native) & $N=512$ \\
-\midrule
-S1 (Burgers) & \textbf{A0} & $0.0479 \pm 0.0030$ & $0.0523 \pm 0.0055$ & $0.0549 \pm 0.0054$ & $0.0554 \pm 0.0053$ \\
-S1 (Burgers) & \textbf{A5} & $0.1036 \pm 0.0083$ & $0.1106 \pm 0.0081$ & $0.1120 \pm 0.0080$ & $0.1122 \pm 0.0080$ \\
-S1 (Burgers) & \textbf{A6i} & $0.0479 \pm 0.0030$ & $0.0523 \pm 0.0055$ & $0.0549 \pm 0.0054$ & $0.0554 \pm 0.0053$ \\
-S2 (Allen--Cahn) & \textbf{A0} & $0.0358 \pm 0.0008$ & $0.0321 \pm 0.0012$ & $0.0321 \pm 0.0012$ & $0.0321 \pm 0.0012$ \\
-S2 (Allen--Cahn) & \textbf{A5} & $0.0247 \pm 0.0006$ & $0.0167 \pm 0.0008$ & $0.0177 \pm 0.0008$ & $0.0177 \pm 0.0008$ \\
-S2 (Allen--Cahn) & \textbf{A6i} & $0.0357 \pm 0.0008$ & $0.0321 \pm 0.0012$ & $0.0321 \pm 0.0012$ & $0.0321 \pm 0.0012$ \\
-\bottomrule
-\end{tabular}%
-}
-\end{table*}
-
-\subsection{Order Recovery Diagnostic on Linear Diffusion}
-Table~\ref{tab:alpha} and Fig.~\ref{fig:alpha} summarize effective exponent recovery $\alpha_{\mathrm{eff}}$ on linear fractional diffusion across the four true physical orders $\alpha \in \{0.8, 1.2, 1.6, 1.9\}$. Standard FNO achieves a low mean absolute error ($\mathrm{MAE} = 0.0722$) and perfect rank correlation ($\rho = 1.0000$), outperforming the fractional operator $A_6$ ($\mathrm{MAE} = 0.1977$), while the rational filter $A_5$ fails to track order variations ($\mathrm{MAE} = 0.6987$). This proves that linear-response symbol recovery reflects the learned operator's low-pass transfer function fitting the input-output mapping, rather than physical parameter discovery.
+\subsection{Arms, Training and Metric}
+Table~\ref{tab:arms} lists the arms. All share one backbone: a lifting layer ($1\to64$), four Fourier layers of width 64 with $M=16$ modes and GELU, and a projection ($64\to128\to1$) with $287{,}361$ parameters. Training uses AdamW with learning rate $10^{-3}$, weight decay $10^{-4}$, a cosine schedule with minimum rate $10^{-5}$, 100 epochs, batch size 125 (50 for 100 samples) and the mean-squared-error loss. The primary metric is the relative $L^2$ error $\|u-\hat u\|_2/\|u\|_2$ over all 200 test samples. Raw MAPE is undefined where $u=0$, and the smallest $|u|$ reaches $2\times10^{-6}$ on S1 ($\alpha=1.2$), so we use two secondary metrics,
+\begin{equation}
+\mathrm{sMAPE}=\frac{100}{n}\sum \frac{2|u-\hat u|}{|u|+|\hat u|+\delta},\quad \delta=10^{-6},
+\label{eq:smape}
+\end{equation}
+\begin{equation}
+\mathrm{MAPE}_\varepsilon=\frac{100}{n}\sum\frac{|u-\hat u|}{|u|+\varepsilon},\quad \varepsilon=0.01\,(\mathrm{std}(u)+10^{-10}).
+\label{eq:mapee}
+\end{equation}
+Differences from A0 use two-sided paired $t$-tests over seeds with 95\% $t$-intervals and Holm correction over the 24 tuned comparisons (eight arms against A0 in three cells). Standard deviations are sample standard deviations ($n-1$).
 
 \begin{table}[t]
-\caption{Probed exponent $\alpha_{\mathrm{eff}}$ on linear fractional diffusion grouped by true physical condition (Mean $\pm$ Std over 5 seeds). MAE and Spearman $\rho$ are computed over the 4 independent physical conditions.}
-\label{tab:alpha}
+\caption{Arms. Extra parameters are trainable parameters beyond the 287,361 of A0; U-Net (287,360) and DeepONet (287,362) are separate architectures of similar size.}
+\label{tab:arms}
 \centering
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{@{}lcccc@{}}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lp{6.2cm}r@{}}
 \toprule
-$\alpha_{\mathrm{true}}$ & FNO (A0) & FNO-G & fr-FNO-R (A5) & fr-FNO-P (A6) \\
+Arm & Description & Extra \\
 \midrule
-0.8 & $0.924 \pm 0.02$ & $0.928 \pm 0.02$ & $0.342 \pm 0.02$ & $0.437 \pm 0.03$ \\
-1.2 & $1.278 \pm 0.01$ & $1.337 \pm 0.01$ & $0.231 \pm 0.08$ & $0.974 \pm 0.40$ \\
-1.6 & $1.646 \pm 0.01$ & $1.646 \pm 0.00$ & $0.527 \pm 0.39$ & $1.756 \pm 0.08$ \\
-1.9 & $1.941 \pm 0.01$ & $1.941 \pm 0.01$ & $2.195 \pm 0.30$ & $1.946 \pm 0.01$ \\
-\midrule
-MAE & $\mathbf{0.0722}$ & $0.0881$ & $0.6987$ & $0.1977$ \\
-$\rho$ ($N=4$) & $\mathbf{1.0000}$ & $\mathbf{1.0000}$ & $0.8000$ & $\mathbf{1.0000}$ \\
+A0 & Vanilla FNO & 0 \\
+A1 & Parameter-matched FNO (projection width 132) & 264 \\
+A2 & Gaussian low-pass~\eqref{eq:gauss}, $\sigma$ chosen on validation & 0 \\
+A3 & Fixed rational filter, $\alpha^*$ chosen on validation ($0.4$, $1.6$, $1.2$ in the tuned cells) & 0 \\
+A5 & Adaptive rational filter, channel-wise & 256 \\
+A5-leg & Additive path $a_c\Psi(k)\hat v$, $a_c{=}3.5$ at init (replica of earlier code) & 256 \\
+A6 / A6i & Fractional symbol, $\beta{=}\ln2$ init / identity init & 512 \\
+A6j & Fractional symbol, $k/M$, $\beta{=}0.3$ init & 512 \\
+A7 & Rational filter, $\alpha$ frozen at random values & 0 \\
+A8a / A8b & Additive diagonal skip, $\Psi\equiv1$ / per-channel output gain & 256 \\
+A9a & Plain FNO; weights scaled once at init by the rational filter & 0 \\
+A10 & Resolvent filter $1/(1+\beta(k/M)^{\alpha})$, $\beta{=}0.3$, $\alpha{=}1$ init & 512 \\
+U-Net & 1D U-Net, three levels, GELU & -- \\
+DeepONet & Branch MLP on 256 sensors, trunk MLP on $x$ & -- \\
 \bottomrule
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.85\columnwidth]{alpha_eff.pdf}
-\caption{Probed exponent $\alpha_{\mathrm{eff}}$ against ground-truth order on linear fractional diffusion. The solid line indicates exact physical recovery; error bars represent standard deviation over five random seeds.}
-\label{fig:alpha}
+\includegraphics[width=0.75\columnwidth]{fig_qualitative.pdf}
+\caption{Predicted vs Absolute Profiles for S1 \& S2.}
+\label{fig:qualitative}
 \end{figure}
 
-\section{Discussion \& Honest Limitations}
-We distill six rigorous empirical conclusions:
-\begin{enumerate}
-\item \textbf{Inductive Bias vs. Order Learning:} On Allen--Cahn, frozen random filter A7 ($0.0112 \pm 0.0005$) matches learned filter A5 ($0.0110 \pm 0.0005$) within $1.8\%$, while fixed filter A3 ($0.0086 \pm 0.0011$) beats both, demonstrating that phase-field improvements stem from spectral low-pass prior regularization rather than fractional order discovery.
-\item \textbf{Failure on Advective Shock Regimes:} On Burgers ($\alpha=0.8$), fractional filtering actively degrades accuracy; learned A5 ($0.1772$) underperforms vanilla A0 ($0.1085$) by $+63.3\%$, while additive skip architectures diverged completely ($1.0155$).
-\item \textbf{Identity Initialization Eliminates Divergence but Yields Zero Nonlinear Edge:} Correcting high-frequency choking in $A_{6i}$ prevents divergence but matches vanilla A0 ($0.1085$ vs. $0.1085$ on S1 $\alpha=0.8$; $0.0549$ vs. $0.0549$ on S1 $\alpha=1.2$; $0.0256$ vs. $0.0256$ at 300 epochs), failing the pre-registered $>10\%$ threshold on 0 of 4 nonlinear benchmark cells.
-\item \textbf{Tuning Parity Explains Baseline Deficits:} Providing vanilla FNO with standard validation hyperparameter tuning ($\text{lr}=3\times 10^{-3}, \text{wd}=0 / 10^{-4}$) yields $0.0389$ on Burgers and $0.0151$ on Allen--Cahn, outperforming all fractional variants across 9 of 10 paired seeds (Wilcoxon $p_{\mathrm{Holm}} = 0.0156$).
-\item \textbf{Data Regime Invariance:} In small-data regimes ($N_{\mathrm{tr}}=100$), fractional operators provide no sample-efficiency gain over vanilla FNO, exhibiting identical or degraded relative errors.
-\item \textbf{Probe Diagnostic Nature:} Linear response symbol probing reflects overall problem stiffness rather than governing fractional PDE orders, producing effective orders $\alpha_{\mathrm{eff}} \in [0.05, 0.53]$ on nonlinear Burgers and Allen--Cahn regardless of physical $\alpha$.
-\end{enumerate}
+\subsection{Decision Rules}
+The following rules were fixed before the nonlinear runs. R1: the fractional symbol is a headline result only if it beats A0 and A2 by more than 10\% in relative $L^2$ on at least three of four orders and its recovered order has Spearman $\rho\ge0.8$. R2: if A2 is within 5\% of A6, the effect is reported as a spectral smoothing bias. R3: if A0 recovers the order as well as A6, the probe is a diagnostic only. R4: if A5-leg is within 5\% of A8 or A0 on at least three of four cells, the earlier gain is attributed to the additive near-identity path. R5: A6i helps in the nonlinear regime only if it beats A0 and A2 by more than 10\% on at least two of four cells. A6j, A9a, A10, U-Net, DeepONet, per-arm tuning, and the 300-epoch, 900-sample and high-order runs were added later and are exploratory.
+
+\section{Results}\label{sec:results}
+
+\subsection{Linear Fractional Diffusion (S3)}
+Table~\ref{tab:s3} gives the test error with 500 training samples. The filters do not improve on the default FNO at any order: A5 is 1.4--2.9 times worse and A6 is 1.1--2.2 times worse. R1 is not met and R3 is triggered.
+
+\begin{table}[t]
+\caption{S3 relative $L^2$ error ($\times10^{-2}$), mean $\pm$ std over 5 seeds, 500 training samples.}
+\label{tab:s3}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Arm & $\alpha{=}0.8$ & $\alpha{=}1.2$ & $\alpha{=}1.6$ & $\alpha{=}1.9$ \\
+\midrule
+A0 & $\mathbf{1.51\pm0.05}$ & $\mathbf{1.19\pm0.05}$ & $1.40\pm0.06$ & $\mathbf{1.32\pm0.06}$ \\
+A1 & $\mathbf{1.51\pm0.07}$ & $\mathbf{1.19\pm0.04}$ & $\mathbf{1.39\pm0.04}$ & $\mathbf{1.32\pm0.04}$ \\
+A2 & $1.53\pm0.05$ & $1.51\pm0.05$ & $1.42\pm0.06$ & $1.34\pm0.06$ \\
+A5 & $2.15\pm0.07$ & $3.41\pm0.10$ & $2.89\pm0.41$ & $1.90\pm0.19$ \\
+A6 & $1.92\pm0.08$ & $2.56\pm0.18$ & $1.83\pm0.07$ & $1.50\pm0.03$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:alpha} and Fig.~\ref{fig:alphaeffective} give the probed exponent. The mean absolute error (MAE) is taken over the four per-order means, so that the four physical conditions are the units and the 20 runs are not treated as independent. A0, which has no fractional parameter, has the lowest error (0.072) and the correct rank order. A6 is worse (0.198) and its estimate at $\alpha=1.2$ varies strongly between seeds ($0.974\pm0.40$). A5 does not track the order (0.699). Because an unfiltered FNO recovers the exponent, exponent recovery shows that the learned map fits the data, not that the filter discovered the physics.
+
+\begin{table}[t]
+\caption{Probed exponent $\alpha_{\mathrm{eff}}$ on S3, mean over 5 seeds. MAE is over the four per-order means.}
+\label{tab:alpha}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+$\alpha_{\mathrm{true}}$ & A0 & A2 & A5 & A6 \\
+\midrule
+0.8 & 0.924 & 0.928 & 0.342 & 0.437 \\
+1.2 & 1.278 & 1.337 & 0.231 & 0.974 \\
+1.6 & 1.646 & 1.646 & 0.527 & 1.756 \\
+1.9 & 1.941 & 1.941 & 2.195 & 1.946 \\
+\midrule
+MAE & \textbf{0.072} & 0.088 & 0.699 & 0.198 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\columnwidth]{alpha_eff.pdf}
+\caption{Effective order of $\alpha$ probed across systems.}
+\label{fig:alphaeffective}
+\end{figure}
+
+\subsection{Nonlinear Systems (S1, S2)}
+Table~\ref{tab:core} reports all arms with default settings and 500 training samples, with representative predicted profiles and absolute errors in Fig.~\ref{fig:qualitative} and training trajectories in Fig.~\ref{fig:curves}.
+\textbf{Default settings.} On Burgers, A3, A5 and A7 raise the error of A0 by a factor of 1.6--2.2, the additive skip A8a by 1.8--2.7, and A6 by 7--8\%; A8b is within 2\% of A0. On Allen--Cahn every filtered variant (A3, A5, A6, A7) reduces the error of A0 by 42--78\%, with the best arm A3 at $\alpha=0.8$ and A6 at $\alpha=1.2$. The parameter-matched A1, the Gaussian control A2 and the output gain A8b do not reproduce this. At $\alpha=1.6$ and $1.9$ (Table~\ref{tab:extra}) no filter improves accuracy: A3 is 53\% and 74\% worse than A0 on Burgers, and all arms lie within 11\% of A0 on Allen--Cahn. The gain is therefore confined to low orders.
+
+\begin{table*}[t]
+\caption{Core ablation under default hyperparameters ($N_{\mathrm{tr}}=500$, 100 epochs, relative $L^2$ error, mean $\pm$ sample std over 5 seeds). Bold marks the lowest error per column.}
+\label{tab:core}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{lcccc}
+\toprule
+ & \multicolumn{2}{c}{S1 Burgers} & \multicolumn{2}{c}{S2 Allen--Cahn} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Arm & $\alpha=0.8$ & $\alpha=1.2$ & $\alpha=0.8$ & $\alpha=1.2$ \\
+\midrule
+A0 & $0.1085\pm0.0070$ & $0.0549\pm0.0060$ & $0.0399\pm0.0031$ & $0.0321\pm0.0013$ \\
+A1 & $0.1101\pm0.0039$ & $0.0546\pm0.0033$ & $0.0370\pm0.0030$ & $0.0301\pm0.0015$ \\
+A2 & $0.1099\pm0.0063$ & $0.0551\pm0.0062$ & $0.0391\pm0.0031$ & $0.0312\pm0.0014$ \\
+A3 & $0.1728\pm0.0071$ & $0.1054\pm0.0052$ & $\mathbf{0.0086\pm0.0013}$ & $0.0187\pm0.0010$ \\
+A5 & $0.1772\pm0.0113$ & $0.1120\pm0.0090$ & $0.0110\pm0.0005$ & $0.0177\pm0.0009$ \\
+A5-leg & $1.0155\pm0.1611$ & $1.0352\pm0.1852$ & $0.5413\pm0.0632$ & $0.5734\pm0.0657$ \\
+A6 & $0.1156\pm0.0052$ & $0.0591\pm0.0058$ & $0.0105\pm0.0028$ & $\mathbf{0.0173\pm0.0010}$ \\
+A6i & $0.1085\pm0.0070$ & $0.0549\pm0.0060$ & $0.0399\pm0.0031$ & $0.0321\pm0.0013$ \\
+A7 & $0.1962\pm0.0083$ & $0.1230\pm0.0069$ & $0.0112\pm0.0006$ & $0.0177\pm0.0009$ \\
+A8a & $0.1960\pm0.0079$ & $0.1484\pm0.0116$ & $0.1035\pm0.0052$ & $0.0939\pm0.0050$ \\
+A8b & $\mathbf{0.1073\pm0.0067}$ & $\mathbf{0.0540\pm0.0060}$ & $0.0399\pm0.0032$ & $0.0320\pm0.0013$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\textbf{Adaptivity.} A5 and the frozen A7 agree within 2\% on Allen--Cahn, and the validation-tuned fixed filter A3 beats the adaptive A5 in three of four cells, so learning the order adds little. The learned orders do not track the PDE: the mean final $\alpha$ of A5 over five seeds is $0.838\pm0.018$ on Burgers ($\alpha_{\mathrm{true}}=1.2$), $1.018\pm0.006$ on Allen--Cahn at $\alpha_{\mathrm{true}}=0.8$ and $1.013\pm0.008$ at $1.2$, from an initial value of 1. The values are reproducible across seeds but nearly equal for the two Allen--Cahn orders, so $\alpha$ acts as a numerical filter scale and not a physical order.
+
+\textbf{Earlier additive variant.} The replica of the earlier additive path (A5-leg) gives errors of $0.54$--$1.04$ on every cell, far above A0 and A8a, so R4 is not met. Its initial gain is $a_c\Psi\approx7.8$ in each of four blocks and training is unstable. The earlier implementation used a single Fourier layer, so this result describes the additive path in a four-block FNO and not the earlier network itself.
+
+\textbf{Identity initialization.} A6i equals A0 to four decimals in all 20 runs and at 300 epochs, so R5 fails on all four cells. For seed 42, $\beta$ ends at about $10^{-3}$ and $\alpha$ within 0.03 of 1: since $\beta=\mathrm{softplus}(\hat\beta)$ with $\hat\beta\approx-6.9$, the factor $\partial\beta/\partial\hat\beta\approx10^{-3}$ reduces the gradient of $\hat\beta$ to $10^{-7}$--$10^{-6}$. The outcome is uninformative about identity-initialized fractional filters. The gap between A6 ($0.0105$) and A6i ($0.0399$) at $\alpha=0.8$ on Allen--Cahn shows that the effect comes from the strongly attenuating initial symbol.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.75\columnwidth]{fig_curves.pdf}
+\caption{Relative $L^2$ Error across all benchmarks}
+\label{fig:curves}
+\end{figure}
+
+\subsection{Per-Arm Tuning and Other Operators}\label{sec:tuned}
+The default settings undertrain every arm, so each arm was tuned separately (Table~\ref{tab:tuned}). For each arm and cell, learning rate $\{3\times10^{-4},10^{-3},3\times10^{-3}\}$ and weight decay $\{0,10^{-4}\}$ were scored on the validation set (100 epochs, seed 42), and the best pair was run for all five seeds; the test set was not used for selection. The selected pair was $(3\times10^{-3},0)$ for every model in every cell except A6 on S2 at $\alpha=1.2$ (weight decay $10^{-4}$), so the optimum lies on the upper edge of the grid. Tuning improves every arm: A5 on Burgers falls from 0.1120 to 0.0554, A3 from 0.1054 to 0.0575, and A0 on Allen--Cahn at $\alpha=0.8$ from 0.0399 to 0.0128.
+
+\begin{table}[t]
+\caption{Tuned comparison, 500 training samples, 100 epochs, mean $\pm$ sample std over 5 seeds. Bold marks the lowest value per column.}
+\label{tab:tuned}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.2pt}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+ & S1, $\alpha{=}1.2$ & S2, $\alpha{=}0.8$ & S2, $\alpha{=}1.2$ \\
+\midrule
+A0 & $0.0389\pm0.0063$ & $0.0128\pm0.0038$ & $0.0151\pm0.0012$ \\
+A9a & $\mathbf{0.0382\pm0.0060}$ & $0.0127\pm0.0034$ & $0.0151\pm0.0010$ \\
+A6j & $0.0392\pm0.0060$ & $0.0126\pm0.0042$ & $0.0151\pm0.0016$ \\
+A10 & $0.0392\pm0.0060$ & $0.0126\pm0.0042$ & $0.0151\pm0.0016$ \\
+A6 & $0.0399\pm0.0048$ & $\mathbf{0.0070\pm0.0011}$ & $0.0164\pm0.0007$ \\
+A5 & $0.0554\pm0.0100$ & $0.0079\pm0.0008$ & $\mathbf{0.0148\pm0.0004}$ \\
+A3 & $0.0575\pm0.0075$ & $0.0078\pm0.0005$ & $0.0161\pm0.0005$ \\
+U-Net & $0.1674\pm0.0043$ & $0.0447\pm0.0054$ & $0.0443\pm0.0068$ \\
+DeepONet & $0.4518\pm0.0090$ & $0.5375\pm0.0121$ & $0.5397\pm0.0214$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{5pt}
+\caption{Additional settings, relative $L^2$ error, mean $\pm$ sample std. 300 epochs: tuned, three seeds. $N_{\mathrm{tr}}=900$ and $\alpha\in\{1.6,1.9\}$: five seeds, 100 epochs, 900 and 500 training samples. Bold marks the lowest value per row; ``--'' means not run.}
+\label{tab:extra}
+\begin{tabular}{llccccc}
+\toprule
+Setting & Cell & A0 & A3 & A5 & A6 & A10 \\
+\midrule
+300 epochs & S1, $\alpha{=}1.2$ & $0.0269\pm0.0031$ & $0.0269\pm0.0025$ & $0.0211\pm0.0019$ & $\mathbf{0.0185\pm0.0007}$ & $0.0259\pm0.0028$ \\
+300 epochs & S2, $\alpha{=}0.8$ & $0.0040\pm0.0003$ & $0.0044\pm0.0009$ & $0.0039\pm0.0002$ & $\mathbf{0.0035\pm0.0002}$ & $0.0040\pm0.0006$ \\
+300 epochs & S2, $\alpha{=}1.2$ & $0.0107\pm0.0003$ & $0.0125\pm0.0001$ & -- & $0.0115\pm0.0001$ & $\mathbf{0.0107\pm0.0001}$ \\
+$N_{\mathrm{tr}}{=}900$ & S1, $\alpha{=}1.2$ & $0.0233\pm0.0027$ & $0.0337\pm0.0024$ & -- & $\mathbf{0.0220\pm0.0005}$ & $0.0236\pm0.0026$ \\
+$N_{\mathrm{tr}}{=}900$ & S2, $\alpha{=}0.8$ & $0.0055\pm0.0013$ & $0.0052\pm0.0011$ & -- & $\mathbf{0.0047\pm0.0008}$ & $0.0051\pm0.0011$ \\
+High order & S1, $\alpha{=}1.6$ & $\mathbf{0.0225\pm0.0008}$ & $0.0345\pm0.0017$ & -- & $0.0228\pm0.0014$ & $0.0238\pm0.0013$ \\
+High order & S1, $\alpha{=}1.9$ & $\mathbf{0.0181\pm0.0009}$ & $0.0315\pm0.0016$ & -- & $0.0182\pm0.0009$ & $0.0182\pm0.0010$ \\
+High order & S2, $\alpha{=}1.6$ & $\mathbf{0.0249\pm0.0009}$ & $0.0255\pm0.0010$ & -- & $0.0253\pm0.0010$ & $0.0253\pm0.0008$ \\
+High order & S2, $\alpha{=}1.9$ & $\mathbf{0.0182\pm0.0069}$ & $0.0185\pm0.0071$ & -- & $0.0201\pm0.0071$ & $0.0184\pm0.0069$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\textbf{Burgers, $\alpha=1.2$.} At 100 epochs A0, A6, A6j, A10 and A9a lie within 4\% of each other (0.0382--0.0399). A3 and A5 are worse by 48\% and 42\%, but with Holm-adjusted $p=0.079$ and $0.36$ this is not significant. At 300 epochs (Table~\ref{tab:extra}) A3 ties A0, A5 is 22\% lower ($p=0.12$), and A6 is best at $0.0185$, 31\% below A0 (paired difference $-0.0083$, 95\% interval $[-0.0156,-0.0011]$, $p=0.035$). With three seeds and eight 300-epoch comparisons this does not survive Holm correction and is exploratory, but it shows that the 100-epoch disadvantage does not persist. At 900 samples A6 ties A0 while A3 stays 45\% worse ($p=0.003$, uncorrected).
+
+\textbf{Allen--Cahn, $\alpha=1.2$.} All FNO arms lie between 0.0148 and 0.0164 with overlapping intervals. At 300 epochs A0 reaches $0.0107$, A10 matches it, and A6 and A3 are 8\% and 17\% worse. No filter gain survives at this order.
+
+\textbf{Allen--Cahn, $\alpha=0.8$.} At 100 epochs the strongly attenuating filters keep an advantage: A6 ($0.0070$), A3 ($0.0078$) and A5 ($0.0079$) are 38--45\% below A0 ($0.0128$), whose error varies strongly across seeds. Uncorrected paired $t$-tests give $p=0.030$ (A6), $0.036$ (A5) and $0.040$ (A3), and Holm-adjusted values over the 24 comparisons are $0.47$, $0.54$ and $0.55$. All three arms beat A0 on all five seeds, but with $n=5$ the smallest attainable two-sided exact Wilcoxon $p$ is $1/16=0.0625$, so neither test can reach 0.05. The result is suggestive and not established. The near-identity filters A6j, A10 and the rescaled-initialization control A9a ($0.0126$--$0.0127$) do not improve accuracy, so the effect needs a strongly attenuating filter that remains in the forward pass. The advantage also shrinks with training length and data: at 300 epochs the arms are at parity (A0 $0.0040$, A6 $0.0035$, paired difference $-0.0004$, $p=0.054$), and at 900 samples A6 is 15\% below A0 ($p=0.089$) with A3 and A10 5--7\% below, none significant.
+
+\textbf{Adaptivity and near-identity filters.} A5 and the fixed A3 tie in all three tuned cells, so adapting the order adds nothing. For the tuned A6 (seed 42) the mean final $\alpha$ is $0.97$ on S2 ($\alpha_{\mathrm{true}}=0.8$) and $0.71$ on S1 ($\alpha_{\mathrm{true}}=1.2$), so the fractional symbol does not recover the physical order either. A6j and A10 barely move from initialization ($\alpha$ ends at $0.96$--$0.99$ and $\beta$ at $0.29$--$0.32$). They are separate implementations, $\exp(-\beta(k/M)^{\alpha})$ and $1/(1+\beta(k/M)^{\alpha})$, with the same first-order expansion, yet their errors agree to four decimals in every cell. We could not fully explain this, so they are counted as one weak test of an $\alpha$-controlled filter.
+
+\textbf{Other operators.} The U-Net has 2.9--4.3 times the error of the tuned FNO and DeepONet 12--42 times. These six comparisons against A0 are the only ones that survive Holm correction (adjusted $p\le1.9\times10^{-3}$). DeepONet underfits: on S2 ($\alpha=0.8$, seed 42) its training error is $0.570$ and its test error $0.561$. Of four modifications (input normalization, trunk Fourier features $k=1,\dots,16$, width 256, 300 epochs), Fourier features gave the largest improvement (test $0.250$, training $0.145$), reaching $0.249\pm0.003$ on S1 ($\alpha=1.2$) and $0.255\pm0.004$ on S2 ($\alpha=0.8$) over five seeds; the others stay between $0.42$ and $0.54$. Even this variant is 6.4 and 20 times worse than the tuned A0, so DeepONet remains a weak reference and no general claim about it is made.
+
+\textbf{Training length and data size.} The 300-epoch runs improve every arm; on S2 at $\alpha=1.2$ the U-Net reaches $0.0200$ and DeepONet $0.432$. With default settings on S1 ($\alpha=1.2$), A0 improves from $0.0570$ to $0.0256$ at 300 epochs and the A5 excess over A0 narrows from 92\% to 32\%. With 100 training samples and default settings the filters again degrade accuracy on Burgers (A5 $0.1800$ and A6 $0.1415$ vs.\ A0 $0.1083$), while on Allen--Cahn A5 and A6 cut the A0 error by 57--60\% at 100 samples and by 45--46\% at 500. A tuned baseline at 100 samples was not run, so no sample-efficiency claim is made.
+
+\textbf{Secondary metrics.} The sMAPE~\eqref{eq:smape} and MAPE$_\varepsilon$~\eqref{eq:mapee} of the tuned arms rank them as relative $L^2$ does in every cell. For example, on S2 ($\alpha=0.8$) A0 has 2.81\% and 2.42\% against 1.44\% and 1.14\% for A6, and on S1 ($\alpha=1.2$) A0 has 7.97\% and 7.25\% against 10.59\% and 10.47\% for A3. The clamped raw MAPE over $|u|\ge10^{-4}$ is 1.3--1.8 times the sMAPE for FNO arms and reaches 185\% for DeepONet.
+
+\textbf{Cost and resolution transfer.} On one Apple GPU, the filters add 3--20\% to the training time per epoch (A0 0.117\,s, A6j 0.141\,s) and change the inference latency by less than 12\%, within the noise of single measurements; DeepONet trains about ten times faster. Models trained at $N=256$ and evaluated at $N\in\{64,128,512\}$ ($\alpha=1.2$, five seeds) stay within 6\% of their native error for $N\ge128$ and differ by 7--40\% at $N=64$ (largest for A5 on S2, $0.0247$ vs.\ $0.0177$). The ranking of A0 and A5 is the same at every resolution, so the filter neither removes nor clearly improves the degradation at the coarsest grid.
+
+\section{Limitations}
+(i) Hyperparameters were selected on one seed from six pairs, and the selected learning rate was the largest in the grid, so a wider grid could change the ranking. (ii) The Allen--Cahn advantage at $\alpha=0.8$ does not survive Holm correction, and the 300-epoch, 900-sample, Burgers and high-order results use three or five seeds and are exploratory; an exact Wilcoxon test cannot reach $p<0.05$ with five seeds. (iii) The mechanism is not isolated: rescaling the initial weights (A9a) does not reproduce the effect, which points to the persistent filter, but a persistent reparametrization of the spectral weights remains a hypothesis. (iv) A6i never left its initial values, and A6j and A10 form one weak test. (v) The Burgers $\alpha=0.8$ reference is not converged. (vi) The study covers three systems, four orders and one network width; a fractional Fisher--KPP system was designed and its solver verified, but no networks were trained on it. (vii) DeepONet underfits at this size, and the U-Net is one architecture.
 
 \section{Conclusion}
-We performed a systematic theoretical and empirical evaluation of adaptive fractional Fourier neural operators across four PDEs, four fractional orders, and four spatial resolutions under a leak-free protocol. We proved that the heuristic rational filter cannot parameterize fractional decay, reformulated the filter as a true fractional Laplacian resolvent, and established that validation-tuned vanilla FNO matches or outperforms fractional variants across benchmark systems. Furthermore, our model-agnostic linear response probe recovers governing orders with an MAE of $0.072$ on linear benchmarks, providing a diagnostic tool for inspecting learned representations in neural operators.
+A learnable spectral filter does not make an FNO learn fractional order. The rational filter cannot encode an order by construction, the learned orders do not track the true order, the exact fractional symbol and the resolvent filter did not beat a fixed or tuned filter, and an unfiltered FNO recovers the exponent of linear fractional diffusion at least as well. With default settings, filters degrade accuracy on Burgers and improve it on Allen--Cahn. After per-arm tuning the Allen--Cahn gain vanishes at $\alpha=1.2$ and at high orders, and at $\alpha=0.8$ it is not significant after Holm correction and shrinks with longer training and more data. The FNO family clearly beats a U-Net and a DeepONet of the same size. Practitioners should compare against a tuned, fully trained vanilla FNO, and against frozen and initialization controls, before attributing a gain to fractional structure.
 
 \section*{Data and Code Availability}
-All datasets, pre-trained checkpoints, and evaluation scripts are available at: \url{https://github.com/HarshitPranjal/Fractional-FNO-Fr-FNO-}.
+All datasets, scripts and per-run records are available at \url{https://github.com/HarshitPranjal/Fractional-FNO-Fr-FNO-}.
 
 \bibliographystyle{IEEEtran}
 \bibliography{References}
