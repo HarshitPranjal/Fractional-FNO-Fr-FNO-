@@ -1,0 +1,161 @@
+================================================================================
+EXHAUSTIVE TECHNICAL CONFIGURATION DUMP (IEEE INDICON REVISION SUITE)
+================================================================================
+
+(i) GAUSSIAN RANDOM FIELD (GRF) SAMPLING:
+--------------------------------------------------------------------------------
+- Spectrum Covariance Operator:
+  C = (-Delta + tau^2 * I)^(-s) on periodic 1D domain [0, 2*pi).
+  Parameters: tau = 3.0, s = 2.0.
+  Continuous Fourier amplitude:
+    A(k) = (k^2 + tau^2)^(-s / 2) = (k^2 + 9)^(-1.0)
+  Mean mode: A(0) = 0.0 (strictly enforces zero mean in frequency space).
+- Random Sampling:
+  k = 2*pi * rfftfreq(N, d=L/N) = [0, 1, ..., N//2] (integer wavenumbers for L=2*pi).
+  Complex Gaussian coefficients:
+    c_k = real_k + 1j * imag_k, where real_k, imag_k ~ Normal(0, 1).
+    Hermitian symmetry constraints for real-valued fields: imag[:, 0] = 0.0 and imag[:, -1] = 0.0.
+- Normalization in Fourier Space:
+  u_hat(k) = c_k * A(k) * (N / sqrt(2.0)).
+- Spatial Realization:
+  u(x) = irfft(u_hat, n=N).
+- Spatial Rescaling / Standardisation:
+  u <- (u - mean(u)) / (std(u) + 1.0e-8).
+  Every realized sample strictly has spatial mean = 0.0 and sample variance = 1.0.
+- Seed Handling:
+  torch.manual_seed(seed) is set immediately prior to randn drawing.
+
+(ii) PREPARE INITIAL CONDITIONS PER SYSTEM:
+--------------------------------------------------------------------------------
+Initial condition transformations from standardized u_grf:
+- S1 (Space-Fractional Burgers):
+    u_0(x) = 0.5 * u_grf(x)
+    Produces smooth, mean-zero wave profiles with typical amplitude in [-1.5, 1.5].
+- S2 (Fractional Allen-Cahn):
+    u_0(x) = tanh(u_grf(x))
+    Produces two-phase phase-field states bounded strictly in (-1, 1) with steep interfaces.
+- S3 (Linear Fractional Diffusion):
+    u_0(x) = u_grf(x)
+    Produces zero-mean temperature / concentration distributions.
+- S4 (Fractional Fisher-KPP):
+    u_0(x) = sigmoid(u_grf(x)) = 1 / (1 + exp(-u_grf(x)))
+    Produces strictly positive population density fields bounded in (0, 1).
+
+(iii) PDE SOLVER SETTINGS PER SYSTEM:
+--------------------------------------------------------------------------------
+- Domain & Spatial Discretization:
+    Domain: periodic interval [0, 2*pi).
+    Native Grid: N = 256 equidistant points for dataset generation across all systems (S1, S2, S3, S4).
+    Native Time Step: dt = 1.0e-3 (1000 integration steps to T = 1.0).
+    De-aliasing: 2/3-rule Orszag spectral mask (modes with |k| >= N/3 are zeroed) for non-linear advection and reaction.
+    Reference Grid & Step: N_ref = 512, dt_ref = 5.0e-4 (2000 steps), used strictly for numerical self-convergence verification and zero-shot super-resolution testing.
+
+- S1 (Space-Fractional Burgers):
+    Equation: d_t u + u * d_x u + nu * (-Delta)^(alpha/2) u = 0.
+    Dissipation constant: nu = 0.05.
+    Solver Method: Strang-splitting Integrating-Factor pseudo-spectral solver.
+    Linear Step: Exact exponential integrating factor E_half = exp(-nu * |k|^alpha * dt / 2).
+    Nonlinear Step: Classical 4th-order Runge-Kutta (RK4) on the advective flux
+      f(u) = -0.5 * d_x(u^2) computed pseudo-spectrally with 2/3 Orszag dealiasing.
+
+- S2 (Fractional Allen-Cahn):
+    Equation: d_t u + eps^2 * (-Delta)^(alpha/2) u - (u - u^3) = 0.
+    Interfacial thickness constant: eps^2 = 0.01 (eps = 0.1).
+    Solver Method: Strang-splitting Integrating-Factor pseudo-spectral solver.
+    Linear Step: Exact exponential factor E_half = exp(-eps^2 * |k|^alpha * dt / 2).
+    Nonlinear Step: RK4 on the bistable polynomial reaction f(u) = u - u^3.
+
+- S3 (Linear Fractional Diffusion):
+    Equation: d_t u + nu * (-Delta)^(alpha/2) u = 0.
+    Diffusion constant: nu = 0.1.
+    Solver Method: Exact closed-form Fourier spectral multiplier:
+      u_hat(k, T) = u_hat(k, 0) * exp(-nu * |k|^alpha * T).
+      Zero temporal discretization error.
+
+- S4 (Fractional Fisher-KPP):
+    Equation: d_t u + nu * (-Delta)^(alpha/2) u - r * u * (1 - u) = 0.
+    Reaction & diffusion constants: nu = 0.1, r = 1.0.
+    Solver Method: Strang-splitting integrating factor + RK4 on f(u) = u * (1 - u).
+
+- Reference Convergence:
+    Relative temporal self-convergence ||u(dt) - u(dt/2)||_2 / ||u(dt/2)||_2 < 1.0e-5.
+    Spatial self-convergence ||u(N=256) - u(N=512)||_2 / ||u(N=512)||_2 < 1.0e-4.
+
+(iv) PARAMETER INITIALIZATIONS & TUNED VALUES:
+--------------------------------------------------------------------------------
+- Model Backbone:
+    Fourier blocks: 4 blocks, width = 64 channels, modes M = 16.
+    Lifting layer: Conv1d(1, 64, 1).
+    Projection layer: Conv1d(64, 128, 1) -> GELU -> Conv1d(128, 1, 1).
+    Residual bypass: Conv1d(64, 64, 1) per block.
+
+- Arm Initializations:
+    * A0 (Default FNO): No filter (Psi = 1). Params = 287,361.
+    * A1 (Parameter-Matched FNO): Projection hidden width increased to 132. Params = 287,617.
+    * A2 (Gaussian Smoothing): Fixed filter Psi = exp(-k^2 / (2*sigma^2)).
+        Validation-tuned sigma*: sigma* = 8.0 for all cells. Params = 287,361.
+    * A3 (Fixed Paper fr-FNO): Fixed filter Psi = 1 / (exp(1-alpha*) + alpha* * k^2).
+        Validation-tuned alpha*:
+          - S1_burgers alpha=1.2:     alpha* = 0.4
+          - S2_allen_cahn alpha=0.8:  alpha* = 1.6
+          - S2_allen_cahn alpha=1.2:  alpha* = 1.2
+        Params = 287,361.
+    * A5 (Adaptive Rational fr-FNO): Psi = 1 / (exp(1-alpha) + alpha * k^2).
+        alpha_i = 2 * sigmoid(raw_alpha_i), raw_alpha ~ Normal(0, 0.01), alpha_init ~ 1.0.
+        Params = 287,617.
+    * A6 (True Fractional Resolvent, Uncalibrated Init): Psi = exp(-c * k^alpha).
+        c = softplus(raw_c), raw_c = 0.0 => c_init = log(2) ~ 0.6931.
+        alpha = 2 * sigmoid(raw_alpha), raw_alpha = 0.0 => alpha_init = 1.0.
+        Params = 287,873.
+    * A6i (Identity-Init Resolvent): Psi = exp(-beta * (k/M)^alpha).
+        beta = softplus(raw_c), raw_c = -6.907256 => beta_init = 1.0e-3.
+        alpha_init = 1.0. Normalized wavenumber kappa = k / 16. Params = 287,873.
+    * A6j (Identity-Normalized, Moderately Scaled): Psi = exp(-beta * (k/M)^alpha).
+        beta = softplus(raw_c), raw_c = log(exp(0.3)-1) ~ -1.05022 => beta_init = 0.3.
+        alpha_init = 1.0. Normalized wavenumber kappa = k / 16. Params = 287,873.
+    * A9a (Pre-shaped Initial Weights): Plain FNO in forward pass (Psi = 1).
+        At initialization: R_phi(k) <- R_phi(k) * Psi_rat(k; alpha*).
+        alpha* taken from A3's validation choice. Params = 287,361.
+    * A10 (Resolvent Filter): Psi = 1 / (1 + beta * (k/M)^alpha).
+        beta = softplus(raw_c), raw_c = -1.05022 => beta_init = 0.3.
+        alpha_init = 1.0. Filter range at init: [0.7805, 1.0]. Params = 287,873.
+    * DeepONet: Branch net (256 -> 310 -> 397 -> 128), Trunk net (1 -> 128 -> 128 -> 128).
+        Params = 287,362.
+    * 1D U-Net: 3 levels, Conv1d channels (21, 33, 193), GELU activations.
+        Params = 287,360.
+
+(v) OPTIMIZER, BATCH SIZE, SCHEDULER, WEIGHT INIT, EPOCHS:
+--------------------------------------------------------------------------------
+- Optimizer:
+    Class: torch.optim.AdamW.
+    Backbone parameter group: lr = 1.0e-3 (or swept in {3e-4, 1e-3, 3e-3}), weight_decay = 1.0e-4 (or 0.0).
+    Physical filter parameter group (raw_alpha, raw_c): lr = 10 * lr, weight_decay = 0.0.
+- Batch Size:
+    batch_size = 125 for n_train = 500 (exactly 4 minibatches per epoch).
+    batch_size = 50 for n_train = 100 (exactly 2 minibatches per epoch).
+- Learning Rate Scheduler:
+    Class: torch.optim.lr_scheduler.CosineAnnealingLR.
+    T_max = epochs (100 or 300).
+    eta_min = 1.0e-5.
+- Weight Initialization:
+    Spectral weights: Complex Gaussian scale = 1.0 / (in_channels * out_channels) = 1.0 / 4096.
+    Lifting & projection layers: PyTorch standard Kaiming uniform.
+- Epochs:
+    Standard training: 100 epochs.
+    Long training: 300 epochs.
+
+(vi) EVALUATION METRIC CLARIFICATION:
+--------------------------------------------------------------------------------
+- Question: Is relative L2 error the norm over the whole test set (aggregate) or
+  the mean of per-sample ratios?
+- Answer: AGGREGATE NORM OVER THE ENTIRE TEST SET.
+- Exact Code Lines in fr_fno_master.py (Lines 1583-1586):
+    diff_norm = torch.norm(pred_test - y_test)
+    true_norm = torch.norm(y_test) + 1.0e-10
+    test_rel_l2 = (diff_norm / true_norm).item()
+  Here, pred_test and y_test are 3D tensors of shape (200, 1, 256).
+  torch.norm() calculates the Frobenius / L2 norm across all 200 samples and all
+  256 spatial coordinates simultaneously:
+    sqrt(sum_{i=1}^200 sum_{x=1}^256 (pred_{i,x} - y_{i,x})^2) / sqrt(sum_{i=1}^200 sum_{x=1}^256 y_{i,x}^2)
+  This is the standard definition used by Li et al. (2021) in the original FNO paper.
+================================================================================

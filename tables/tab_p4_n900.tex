@@ -1,0 +1,20 @@
+\begin{table*}[t]
+\centering
+\small
+\caption{Full-Data Evaluation ($N_{\text{tr}}=900$, 100 Epochs) on S2 Allen-Cahn ($\alpha=0.8$) and S1 Burgers ($\alpha=1.2$) across 5 Seeds.}
+\label{tab:p4_n900}
+\begin{tabular}{llcccc}
+\toprule
+System & Arm & Test Rel. $L^2$ (Mean $\pm$ Std) & 95\% CI & Paired Diff vs. $A_0$ [95\% CI] & Verdict \\
+\midrule
+S1 (Burgers $\alpha=1.2$) & A0 & 0.0233 $\pm$ 0.0027 & [0.0199, 0.0267] & -- & Baseline \\
+S1 (Burgers $\alpha=1.2$) & A3 & 0.0337 $\pm$ 0.0024 & [0.0307, 0.0367] & +0.0104 [+0.0053, +0.0155] & Worse than A0 (p < 0.05) \\
+S1 (Burgers $\alpha=1.2$) & A6 & 0.0220 $\pm$ 0.0005 & [0.0214, 0.0227] & -0.0013 [-0.0043, +0.0017] & Tie / Parity \\
+S1 (Burgers $\alpha=1.2$) & A10 & 0.0236 $\pm$ 0.0026 & [0.0203, 0.0268] & +0.0003 [-0.0003, +0.0008] & Tie / Parity \\
+S2 (AC $\alpha=0.8$) & A0 & 0.0055 $\pm$ 0.0013 & [0.0039, 0.0070] & -- & Baseline \\
+S2 (AC $\alpha=0.8$) & A3 & 0.0052 $\pm$ 0.0011 & [0.0039, 0.0065] & -0.0003 [-0.0023, +0.0018] & Tie / Parity \\
+S2 (AC $\alpha=0.8$) & A6 & 0.0047 $\pm$ 0.0008 & [0.0037, 0.0057] & -0.0008 [-0.0018, +0.0002] & Tie / Parity \\
+S2 (AC $\alpha=0.8$) & A10 & 0.0051 $\pm$ 0.0011 & [0.0038, 0.0065] & -0.0003 [-0.0008, +0.0001] & Tie / Parity \\
+\bottomrule
+\end{tabular}
+\end{table*}

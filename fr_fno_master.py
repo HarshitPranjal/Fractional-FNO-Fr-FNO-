@@ -481,6 +481,19 @@ class SpectralFilter1d(torch.nn.Module):
             # wavenumber normalised kappa = k / modes
             self.raw_alpha = torch.nn.Parameter(torch.zeros(channels))
             self.raw_c = torch.nn.Parameter(torch.full((channels,), -6.907256))
+        elif filter_type == "true_fractional_a6j":
+            # A6j: A6i with beta init 0.3 (raw = log(exp(0.3)-1) ~ -1.050222), alpha init 1.0
+            # wavenumber normalised kappa = k / modes
+            self.raw_alpha = torch.nn.Parameter(torch.zeros(channels))
+            raw_c_val = math.log(math.exp(0.3) - 1.0)
+            self.raw_c = torch.nn.Parameter(torch.full((channels,), raw_c_val))
+        elif filter_type == "resolvent_a10":
+            # A10: Resolvent filter Psi = 1 / (1 + beta * (k/M)^alpha)
+            # beta = softplus(raw_c) initialized to 0.3
+            # alpha init 1.0 (raw_alpha = 0 => 2*sigmoid(0) = 1.0)
+            self.raw_alpha = torch.nn.Parameter(torch.zeros(channels))
+            raw_c_val = math.log(math.exp(0.3) - 1.0)
+            self.raw_c = torch.nn.Parameter(torch.full((channels,), raw_c_val))
         else:
             raise ValueError(f"Unknown filter_type: {filter_type}")
 
@@ -490,12 +503,12 @@ class SpectralFilter1d(torch.nn.Module):
             return None
         elif self.filter_type == "paper_fixed":
             return self.alpha
-        elif self.filter_type in ["paper_scalar", "paper_channel", "paper_channel_frozen", "true_fractional", "true_fractional_identity"]:
+        elif self.filter_type in ["paper_scalar", "paper_channel", "paper_channel_frozen", "true_fractional", "true_fractional_identity", "true_fractional_a6j", "resolvent_a10"]:
             return 2.0 * torch.sigmoid(self.raw_alpha)
 
     def get_c(self):
-        """Returns positive c / beta values where applicable (A6 and A6i)."""
-        if self.filter_type in ["true_fractional", "true_fractional_identity"]:
+        """Returns positive c / beta values where applicable (A6, A6i, A6j, A10)."""
+        if self.filter_type in ["true_fractional", "true_fractional_identity", "true_fractional_a6j", "resolvent_a10"]:
             return F.softplus(self.raw_c)
         return None
 
@@ -541,14 +554,25 @@ class SpectralFilter1d(torch.nn.Module):
             psi = torch.exp(-c.unsqueeze(1) * sym)
             return psi.unsqueeze(0)   # (1, channels, modes)
 
-        elif self.filter_type == "true_fractional_identity":
-            # A6i: Normalized wavenumber kappa = k / modes
+        elif self.filter_type in ["true_fractional_identity", "true_fractional_a6j"]:
+            # A6i / A6j: Normalized wavenumber kappa = k / modes
             kappa = k / float(self.modes)
             alpha = self.get_alpha()  # (channels,)
             beta = self.get_c()       # (channels,)
             sym = torch.zeros(self.channels, self.modes, device=target_dev)
             sym[:, 1:] = torch.pow(kappa[1:].unsqueeze(0), alpha.unsqueeze(1))
             psi = torch.exp(-beta.unsqueeze(1) * sym)
+            return psi.unsqueeze(0)   # (1, channels, modes)
+
+        elif self.filter_type == "resolvent_a10":
+            # A10: Resolvent filter Psi = 1 / (1 + beta * (k/M)^alpha)
+            kappa = k / float(self.modes)
+            alpha = self.get_alpha()  # (channels,)
+            beta = self.get_c()       # (channels,)
+            sym = torch.zeros(self.channels, self.modes, device=target_dev)
+            sym[:, 1:] = torch.pow(kappa[1:].unsqueeze(0), alpha.unsqueeze(1))
+            denom = 1.0 + beta.unsqueeze(1) * sym
+            psi = 1.0 / denom
             return psi.unsqueeze(0)   # (1, channels, modes)
 
 
@@ -666,12 +690,18 @@ class UnifiedFNO1d(torch.nn.Module):
             ft = "true_fractional"; proj_h = 128
         elif arm == "A6i":
             ft = "true_fractional_identity"; proj_h = 128
+        elif arm == "A6j":
+            ft = "true_fractional_a6j"; proj_h = 128
         elif arm == "A7":
             ft = "paper_channel_frozen"; proj_h = 128
         elif arm in ["A8a", "A8-a"]:
             ft = "diagonal_skip"; proj_h = 128
         elif arm in ["A8b", "A8-b", "A8"]:
             ft = "channel_gain"; proj_h = 128
+        elif arm == "A9a":
+            ft = "none"; proj_h = 128
+        elif arm == "A10":
+            ft = "resolvent_a10"; proj_h = 128
         else:
             raise ValueError(f"Unknown arm: {arm}.")
 
@@ -682,9 +712,19 @@ class UnifiedFNO1d(torch.nn.Module):
         self.p = torch.nn.Conv1d(in_dim, width, 1)
 
         # 4 Fourier Blocks: each with SpectralConv1d + 1x1 Conv1d residual bypass
+        a3_alpha = filter_kwargs.pop("a3_alpha", 0.4)
         self.spectral_blocks = torch.nn.ModuleList([
             SpectralConv1d(width, width, modes, filter_type=ft, **filter_kwargs) for _ in range(num_blocks)
         ])
+        if arm == "A9a":
+            # Multiply spectral weights once at init by Psi_rat(k; alpha*)
+            k_grid = torch.arange(modes, dtype=torch.float32)
+            denom = torch.exp(torch.tensor(1.0 - a3_alpha)) + a3_alpha * (k_grid ** 2)
+            psi_rat = (1.0 / denom).view(1, 1, modes)
+            with torch.no_grad():
+                for blk in self.spectral_blocks:
+                    blk.weights.data = blk.weights.data * psi_rat.to(blk.weights.device)
+
         self.w_blocks = torch.nn.ModuleList([
             torch.nn.Conv1d(width, width, 1) for _ in range(num_blocks)
         ])
@@ -707,7 +747,7 @@ class UnifiedFNO1d(torch.nn.Module):
         """
         Extracts current alpha values across blocks for logging and audit.
         """
-        if self.arm in ["A0", "A1", "A2", "A5_legacy", "A5-legacy", "A8a", "A8-a", "A8b", "A8-b", "A8"]:
+        if self.arm in ["A0", "A1", "A2", "A5_legacy", "A5-legacy", "A8a", "A8-a", "A8b", "A8-b", "A8", "A9a"]:
             return {"arm": self.arm, "has_alpha": False}
 
         block_alphas = []
@@ -785,6 +825,122 @@ class UnifiedFNO1d(torch.nn.Module):
             self.q2.weight[0, 0, 0] = 1.0
             self.q2.bias.zero_()
             self.q2.bias[0] = -shift
+
+
+class DeepONet1d(torch.nn.Module):
+    """
+    1D DeepONet baseline with branch net on 256 sensor values and trunk net on x.
+    Latent dimension = 128. Parameter count matches FNO (~287k).
+    """
+    def __init__(self, sensors=256, latent=128, branch_h1=310, branch_h2=397, trunk_h=128):
+        super().__init__()
+        self.arm = "DeepONet"
+        self.latent = latent
+        self.branch = torch.nn.Sequential(
+            torch.nn.Linear(sensors, branch_h1),
+            torch.nn.GELU(),
+            torch.nn.Linear(branch_h1, branch_h2),
+            torch.nn.GELU(),
+            torch.nn.Linear(branch_h2, latent),
+        )
+        self.trunk = torch.nn.Sequential(
+            torch.nn.Linear(1, trunk_h),
+            torch.nn.GELU(),
+            torch.nn.Linear(trunk_h, trunk_h),
+            torch.nn.GELU(),
+            torch.nn.Linear(trunk_h, latent),
+        )
+        self.b0 = torch.nn.Parameter(torch.zeros(1))
+        grid = torch.linspace(0, 2.0 * math.pi, sensors).unsqueeze(1)
+        self.register_buffer("grid", grid)
+
+    def forward(self, u0):
+        if u0.dim() == 3:
+            u0 = u0.squeeze(1)
+        b = self.branch(u0)  # (B, latent)
+        t = self.trunk(self.grid)  # (sensors, latent)
+        out = torch.einsum("bl,sl->bs", b, t) + self.b0
+        return out.unsqueeze(1)
+
+    def get_alpha_summary(self):
+        return {"arm": self.arm, "has_alpha": False}
+
+
+class UNet1d(torch.nn.Module):
+    """
+    1D 3-level U-Net baseline with GELU activations.
+    Channels (21, 33, 193) tuned to match FNO parameter count (~287k).
+    """
+    def __init__(self, in_ch=1, out_ch=1, c1=21, c2=33, c3=193):
+        super().__init__()
+        self.arm = "UNet"
+        self.enc1 = torch.nn.Sequential(
+            torch.nn.Conv1d(in_ch, c1, kernel_size=5, padding=2),
+            torch.nn.GELU(),
+            torch.nn.Conv1d(c1, c1, kernel_size=5, padding=2),
+            torch.nn.GELU(),
+        )
+        self.down1 = torch.nn.Conv1d(c1, c1, kernel_size=4, stride=2, padding=1)
+
+        self.enc2 = torch.nn.Sequential(
+            torch.nn.Conv1d(c1, c2, kernel_size=5, padding=2),
+            torch.nn.GELU(),
+            torch.nn.Conv1d(c2, c2, kernel_size=5, padding=2),
+            torch.nn.GELU(),
+        )
+        self.down2 = torch.nn.Conv1d(c2, c2, kernel_size=4, stride=2, padding=1)
+
+        self.bottleneck = torch.nn.Sequential(
+            torch.nn.Conv1d(c2, c3, kernel_size=5, padding=2),
+            torch.nn.GELU(),
+            torch.nn.Conv1d(c3, c3, kernel_size=5, padding=2),
+            torch.nn.GELU(),
+        )
+
+        self.up2 = torch.nn.ConvTranspose1d(c3, c2, kernel_size=4, stride=2, padding=1)
+        self.dec2 = torch.nn.Sequential(
+            torch.nn.Conv1d(c2 + c2, c2, kernel_size=5, padding=2),
+            torch.nn.GELU(),
+            torch.nn.Conv1d(c2, c2, kernel_size=5, padding=2),
+            torch.nn.GELU(),
+        )
+
+        self.up1 = torch.nn.ConvTranspose1d(c2, c1, kernel_size=4, stride=2, padding=1)
+        self.dec1 = torch.nn.Sequential(
+            torch.nn.Conv1d(c1 + c1, c1, kernel_size=5, padding=2),
+            torch.nn.GELU(),
+            torch.nn.Conv1d(c1, c1, kernel_size=5, padding=2),
+            torch.nn.GELU(),
+            torch.nn.Conv1d(c1, out_ch, kernel_size=1),
+        )
+
+    def forward(self, x):
+        if x.dim() == 2:
+            x = x.unsqueeze(1)
+        e1 = self.enc1(x)
+        d1 = self.down1(e1)
+        e2 = self.enc2(d1)
+        d2 = self.down2(e2)
+        b = self.bottleneck(d2)
+        u2 = self.up2(b)
+        c2 = torch.cat([u2, e2], dim=1)
+        d2_out = self.dec2(c2)
+        u1 = self.up1(d2_out)
+        c1 = torch.cat([u1, e1], dim=1)
+        out = self.dec1(c1)
+        return out
+
+    def get_alpha_summary(self):
+        return {"arm": self.arm, "has_alpha": False}
+
+
+def create_operator_model(arm, width=64, modes=16, num_blocks=4, **filter_kwargs):
+    if arm == "DeepONet":
+        return DeepONet1d()
+    elif arm == "UNet":
+        return UNet1d()
+    else:
+        return UnifiedFNO1d(arm=arm, width=width, modes=modes, num_blocks=num_blocks, **filter_kwargs)
 
 # %% [markdown]
 # ### CELL 10: OPTIMIZER PARAMETER GROUPS & ALPHA LOGGING UTILITIES
@@ -1349,9 +1505,27 @@ def train_one_run(system, alpha_true, arm, train_size, seed, epochs=100, batch_s
             filter_kwargs["gaussian_sigma"] = sigma_selected
         elif arm == "A3":
             filter_kwargs["fixed_alpha"] = tuned["A3_alpha"]
+    elif arm == "A9a":
+        cell_key = f"{system}_alpha_{alpha_true:.1f}"
+        a3_alphas = {
+            "S1_burgers_alpha_0.8": 0.4,
+            "S1_burgers_alpha_1.2": 0.4,
+            "S2_allen_cahn_alpha_0.8": 1.6,
+            "S2_allen_cahn_alpha_1.2": 1.2,
+            "S3_diffusion_alpha_0.8": 0.8,
+            "S3_diffusion_alpha_1.2": 1.2,
+            "S3_diffusion_alpha_1.6": 1.6,
+            "S3_diffusion_alpha_1.9": 1.9,
+            "S4_fisher_kpp_alpha_0.8": 0.4,
+            "S4_fisher_kpp_alpha_1.2": 0.4,
+        }
+        filter_kwargs["a3_alpha"] = a3_alphas.get(cell_key, 0.4)
 
-    model_arm = "A0" if arm == "A0_tuned" else arm
-    model = UnifiedFNO1d(arm=model_arm, width=64, modes=modes, num_blocks=4, **filter_kwargs).to(dev)
+    model_arm = "A0" if arm in ["A0_tuned", "A9a"] else arm
+    if arm == "A9a":
+        # Create model directly with arm="A9a"
+        model_arm = "A9a"
+    model = create_operator_model(arm=model_arm, width=64, modes=modes, num_blocks=4, **filter_kwargs).to(dev)
     trainable_p = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_p = sum(p.numel() for p in model.parameters()) + sum(b.numel() for b in model.buffers())
 
@@ -1374,7 +1548,7 @@ def train_one_run(system, alpha_true, arm, train_size, seed, epochs=100, batch_s
                 init_values["alpha_init_mean"] = float(cat_a.mean().item())
                 init_values["alpha_init_min"] = float(cat_a.min().item())
                 init_values["alpha_init_max"] = float(cat_a.max().item())
-    elif arm in ["A6", "A6i"]:
+    elif arm in ["A6", "A6i", "A6j", "A10"]:
         with torch.no_grad():
             alphas_init = [blk.filter.get_alpha().detach().cpu() for blk in model.spectral_blocks if blk.filter.get_alpha() is not None]
             cs_init = [blk.filter.get_c().detach().cpu() for blk in model.spectral_blocks if blk.filter.get_c() is not None]
@@ -1382,6 +1556,8 @@ def train_one_run(system, alpha_true, arm, train_size, seed, epochs=100, batch_s
                 init_values["alpha_init_mean"] = float(torch.cat([a.reshape(-1) for a in alphas_init]).mean().item())
             if len(cs_init) > 0:
                 init_values["c_init_mean"] = float(torch.cat([c.reshape(-1) for c in cs_init]).mean().item())
+    elif arm == "A9a":
+        init_values["a3_alpha"] = filter_kwargs.get("a3_alpha", 0.4)
     elif arm in ["A5_legacy", "A5-legacy", "A8a", "A8-a"]:
         init_values["amp_c_init"] = 3.5
     elif arm in ["A8b", "A8-b", "A8"]:
@@ -1396,6 +1572,8 @@ def train_one_run(system, alpha_true, arm, train_size, seed, epochs=100, batch_s
     best_val_epoch = 1
     min_val_loss = float("inf")
     start_time = time.time()
+
+    val_trajectory = []
 
     for epoch in range(1, epochs + 1):
         model.train()
@@ -1420,17 +1598,19 @@ def train_one_run(system, alpha_true, arm, train_size, seed, epochs=100, batch_s
 
         scheduler.step()
 
-        # Track validation error per epoch for best_val_epoch
+        # Track validation error per epoch for best_val_epoch and curves
         model.eval()
         with torch.no_grad():
             v_pred = model(x_val)
             v_loss = criterion(v_pred, y_val).item()
+            v_rel_l2 = (torch.norm(v_pred - y_val) / (torch.norm(y_val) + 1.0e-10)).item()
+            val_trajectory.append(v_rel_l2)
             if v_loss < min_val_loss:
                 min_val_loss = v_loss
                 best_val_epoch = epoch
 
         # Track alpha and c evolution
-        if arm in ["A3", "A4", "A5", "A6", "A6i", "A7"]:
+        if arm in ["A3", "A4", "A5", "A6", "A6i", "A6j", "A7", "A10"]:
             with torch.no_grad():
                 alphas = [blk.filter.get_alpha() for blk in model.spectral_blocks if blk.filter.get_alpha() is not None]
                 if len(alphas) > 0:
@@ -1448,7 +1628,17 @@ def train_one_run(system, alpha_true, arm, train_size, seed, epochs=100, batch_s
     # Evaluation on held-out test set
     model.eval()
     with torch.no_grad():
+        for _ in range(3):
+            _ = model(x_test)
+        if dev.type == "mps":
+            torch.mps.synchronize()
+        t_inf0 = time.perf_counter()
         pred_test = model(x_test)
+        if dev.type == "mps":
+            torch.mps.synchronize()
+        t_inf1 = time.perf_counter()
+        infer_ms_per_sample = float(((t_inf1 - t_inf0) / len(test_idx)) * 1000.0)
+
         if torch.isnan(pred_test).any() or torch.isinf(pred_test).any():
             has_nan = True
             test_rel_l2 = float("nan")
@@ -1456,6 +1646,8 @@ def train_one_run(system, alpha_true, arm, train_size, seed, epochs=100, batch_s
             test_smape = float("nan")
             test_mape_eps = float("nan")
             test_raw_mape = float("nan")
+            test_mape_clamped = float("nan")
+            infer_ms_per_sample = float("nan")
         else:
             diff_norm = torch.norm(pred_test - y_test)
             true_norm = torch.norm(y_test) + 1.0e-10
@@ -1470,6 +1662,12 @@ def train_one_run(system, alpha_true, arm, train_size, seed, epochs=100, batch_s
             test_mape_eps = (100.0 * torch.mean(torch.abs(pred_test - y_test) / (torch.abs(y_test) + eps_mape))).item()
             # 3. Raw MAPE clamped at 1e-4 (demonstrates why raw percentage error explodes near zeros)
             test_raw_mape = (100.0 * torch.mean(torch.abs(pred_test - y_test) / torch.clamp(torch.abs(y_test), min=1.0e-4))).item()
+            # 4. Clamped MAPE on points where |y| >= 1e-4
+            mask_clamp = torch.abs(y_test) >= 1.0e-4
+            if mask_clamp.sum() > 0:
+                test_mape_clamped = float(torch.mean(torch.abs(pred_test[mask_clamp] - y_test[mask_clamp]) / torch.abs(y_test[mask_clamp])).item())
+            else:
+                test_mape_clamped = 0.0
 
         # Validation error
         pred_val = model(x_val)
@@ -1478,7 +1676,7 @@ def train_one_run(system, alpha_true, arm, train_size, seed, epochs=100, batch_s
         # Multi-resolution zero-shot tests
         zero_shot_res = {}
         for res in [64, 128, 256, 512]:
-            if "zero_shot_test" in dataset and res in dataset["zero_shot_test"]:
+            if "zero_shot_test" in dataset and res in dataset["zero_shot_test"] and arm != "DeepONet":
                 u0_res = dataset["zero_shot_test"][res]["u0"].unsqueeze(1).to(dev)
                 uT_res = dataset["zero_shot_test"][res]["uT"].unsqueeze(1).to(dev)
                 pred_res = model(u0_res)
@@ -1539,6 +1737,12 @@ def train_one_run(system, alpha_true, arm, train_size, seed, epochs=100, batch_s
         "test_smape": test_smape,  # Symmetric MAPE (%)
         "test_mape_eps": test_mape_eps,  # Epsilon-regularized MAPE (%)
         "test_raw_mape": test_raw_mape,  # Clamped raw MAPE (%)
+        "test_mape_clamped": test_mape_clamped,
+        "infer_ms_per_sample": infer_ms_per_sample,
+        "val_trajectory": val_trajectory,
+        "pred_test_sample0": pred_test[0, 0].cpu().numpy() if not has_nan else None,
+        "y_test_sample0": y_test[0, 0].cpu().numpy(),
+        "x_test_sample0": x_test[0, 0].cpu().numpy(),
         "alpha_eff": probe_res.get("alpha_eff", float("nan")),  # Effective symbol dissipation
         "c_eff": probe_res.get("c_eff", float("nan")),
         "probe_r2": probe_res.get("r2", float("nan")),
