@@ -11,6 +11,14 @@ Priority 4: n_train=900 Extension (All training indices 0..899)
 """
 
 import os
+import sys
+from pathlib import Path
+
+# Ensure repository root is in sys.path and set as current working directory
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+os.chdir(REPO_ROOT)
+
 import json
 import time
 import numpy as np

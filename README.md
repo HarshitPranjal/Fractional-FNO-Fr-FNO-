@@ -81,9 +81,6 @@ This repository provides:
 ├── config_dump.txt                              # Exhaustive technical configuration dump
 ├── fr_fno_master.py                             # Core models, solvers, training, and probing
 ├── audit_suite.py                               # Comprehensive replication and figure generation
-├── run_final_pipeline.py                        # Orchestrates tuning parity and 5-seed confirmation
-├── run_tier_c1.py                               # High-order fractional evaluation (alpha=1.6, 1.9)
-├── make_tables.py                               # Script for LaTeX table generation
 ├── main.tex                                     # IEEE conference manuscript source (5 pages)
 ├── main.pdf                                     # Compiled publication-ready PDF
 ├── References.bib                               # Complete bibliography file
@@ -94,10 +91,10 @@ This repository provides:
 │   ├── S3_diffusion_alpha_*.pt
 │   └── S4_fisher_kpp_alpha_*.pt
 ├── figures/                                     # Publication-ready vector figures (PDF)
+│   ├── fig_spectral_decay_comparison.pdf        # Theoretical roll-off comparison (Fig. 1 in paper)
+│   ├── alpha_eff.pdf                            # Symbol probe correlation (Fig. 2 in paper)
 │   ├── fig_curves.pdf                           # Loss curves (mean ± std over 5 seeds)
-│   ├── fig_qualitative.pdf                      # Predicted profiles and pointwise error
-│   ├── fig_spectral_decay_comparison.pdf        # Theoretical roll-off comparison
-│   └── alpha_eff.pdf                            # Symbol probe correlation
+│   └── fig_qualitative.pdf                      # Predicted profiles and pointwise error
 ├── tables/                                      # Exported LaTeX table snippets
 │   ├── tab_core.tex                             # Core benchmark table
 │   ├── tab_core_ddof1.tex                       # Core benchmark table with sample std (ddof=1)
@@ -107,11 +104,15 @@ This repository provides:
 │   ├── tab_p4_n900.tex                          # Full-data (N_tr=900) evaluation
 │   ├── tab_ablation.tex                         # Ablation table
 │   └── tab_reviewer_metrics.tex                 # Reviewer metric comparison
-├── run_p1.py                                    # Priority 1: 300-epoch extension suite
-├── process_p2.py                                # Priority 2: Secondary metrics, Holm correction, Wilcoxon
-├── extract_2d_params.py                         # Priority 2d: Layer-wise parameter movement measurement
-├── run_p3.py                                    # Priority 3: DeepONet underfitting & architectural variants
-├── run_p4.py                                    # Priority 4: N_tr=900 full training index benchmark
+├── scripts/                                     # Exploration, replication, and audit runners
+│   ├── run_p1.py                                # Priority 1: 300-epoch extension suite
+│   ├── process_p2.py                            # Priority 2: Secondary metrics, Holm correction, Wilcoxon
+│   ├── extract_2d_params.py                     # Priority 2d: Layer-wise parameter movement measurement
+│   ├── run_p3.py                                # Priority 3: DeepONet underfitting & architectural variants
+│   ├── run_p4.py                                # Priority 4: N_tr=900 full training index benchmark
+│   ├── run_final_pipeline.py                    # Orchestrates tuning parity and 5-seed confirmation
+│   ├── run_tier_c1.py                           # High-order fractional evaluation (alpha=1.6, 1.9)
+│   └── make_tables.py                           # Automated LaTeX table generator and auditor
 └── results/                                     # Complete empirical records and CSV summaries
     ├── review_records.jsonl                     # Full append-only log of 439 experiment runs
     ├── priority1_300epoch_stats.csv             # P1 300-epoch summary statistics & paired CIs
@@ -198,7 +199,26 @@ Train U-Net 1D Baseline:
 python fr_fno_master.py --system S1_burgers --alpha 1.2 --arm UNet --train_size 500 --epochs 100 --seed 42
 ```
 
-### 4. Compile Manuscript
+### 4. Run Reviewer Exploration Suites (`scripts/`)
+
+```bash
+# Priority 1: 300-epoch extension on S2 alpha=0.8 and S1 alpha=1.2 (30 runs)
+python scripts/run_p1.py
+
+# Priority 2: Secondary metrics, Holm-Bonferroni correction, and exact Wilcoxon test
+python scripts/process_p2.py
+
+# Priority 2d: Layer-wise parameter movement measurement (A5, A6, A6j, A10)
+python scripts/extract_2d_params.py
+
+# Priority 3: DeepONet underfitting analysis & architectural exploration
+python scripts/run_p3.py
+
+# Priority 4: Full-data benchmark (N_tr=900 across 5 seeds, 40 runs)
+python scripts/run_p4.py
+```
+
+### 5. Compile Manuscript
 
 ```bash
 pdflatex -interaction=nonstopmode main.tex

@@ -7,6 +7,14 @@ Check if A6j and A10 stay near their init and confirm the two arms are not alias
 """
 
 import os
+import sys
+from pathlib import Path
+
+# Ensure repository root is in sys.path and set as current working directory
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+os.chdir(REPO_ROOT)
+
 import torch
 import numpy as np
 import pandas as pd

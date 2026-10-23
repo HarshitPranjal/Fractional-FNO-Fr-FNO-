@@ -12,6 +12,14 @@ Addresses:
 """
 
 import os
+import sys
+from pathlib import Path
+
+# Ensure repository root is in sys.path and set as current working directory
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+os.chdir(REPO_ROOT)
+
 import json
 import numpy as np
 import pandas as pd
@@ -214,7 +222,7 @@ for sys_name, a_val in cells_core:
             "mean": mean,
             "std": std,
             "ci_half": ci_half,
-            "str": f"{mean:.4f} \\pm {std:.4f}",
+            "str": f"${mean:.4f} \\pm {std:.4f}$",
             "ci_str": f"[{mean - ci_half:.4f}, {mean + ci_half:.4f}]"
         }
 
