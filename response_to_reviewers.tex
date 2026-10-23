@@ -1,0 +1,280 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+% Define color palette
+\definecolor{navyblue}{RGB}{20, 50, 110}
+\definecolor{darkgray}{RGB}{50, 50, 50}
+\definecolor{commentgray}{RGB}{70, 75, 85}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small \textbf{IEEE INDICON 2026} --- Author Response Letter}
+\fancyhead[R]{\small Paper ID: 1472}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.5pt}
+
+% Reviewer comment formatting
+\newcommand{\revcomment}[2]{%
+  \vspace{3mm}\par\noindent
+  \textbf{\color{navyblue}#1}\par\vspace{1.5mm}
+  \begingroup
+  \leftskip=1.5em\rightskip=1.5em
+  \small\itshape\color{commentgray}
+  #2\par
+  \endgroup
+  \vspace{2mm}
+}
+
+% Author response formatting
+\newenvironment{authorresponse}{%
+  \vspace{1mm}\par\noindent
+  \textbf{\color{navyblue}Author Response:}\par\vspace{1.5mm}
+}{%
+  \vspace{3mm}\par\noindent\rule{\textwidth}{0.3pt}\vspace{2mm}
+}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE \textbf{\color{navyblue}Point-by-Point Author Response to Reviewers}}\\[3mm]
+  {\large \textbf{23rd Edition of IEEE India Council International Conference (INDICON 2026)}}\\[2mm]
+  \textbf{Paper ID:} 1472 \\[1mm]
+  \textbf{Original Title:} Adaptive Fractional Fourier Neural Operators for Learning Nonlocal PDE Dynamics \\[1mm]
+  \textbf{Revised Title:} Do Fractional Spectral Filters Help Fourier Neural Operators? A Controlled Ablation \\[1mm]
+  \textbf{Author:} Harshit Pranjal (\textit{Dept. of Mathematics, Birla Institute of Technology, Mesra})
+\end{center}
+
+\vspace{3mm}
+\hrule height 1pt
+\vspace{4mm}
+
+\section*{Executive Summary of Revisions}
+
+We sincerely thank the Reviewers and the Program Committee for their constructive, insightful, and rigorous evaluations of our manuscript. Both reviewers recognized the importance of studying fractional differential operators within neural operator learning while correctly highlighting critical gaps in our original draft: the lack of formal mathematical justification for the spectral filter, the absence of multi-seed statistical validation, narrow baseline comparisons, unverified claims regarding MAPE, and insufficient exploration across training lengths, data scales, and fractional orders.
+
+In response, we undertook an exhaustive, systematic revision comprising \textbf{439 independent training and evaluation runs} across a 16-arm ablation ladder. Rather than defending heuristic modifications, we adopted an objective, hypothesis-driven scientific inquiry: \textit{Do learnable fractional spectral multipliers provide a genuine inductive bias for Fourier Neural Operators once all comparisons are rigorously controlled?} 
+
+Key accomplishments in this revised submission include:
+\begin{enumerate}
+  \item \textbf{Mathematical Rigor and Filter Reformulation (Reviewer 1.2, Reviewer 2.5):} We prove analytically that the widely cited rational filter $1/(e^{1-\alpha} + \alpha k^2)$ possesses a fixed quadratic decay $\mathcal{O}(k^{-2})$ for all $\alpha$ (Proposition~1). Hence, $\alpha$ acts as an empirical knee frequency and \textbf{cannot encode a fractional order}. We introduce the exact fractional propagator $\exp(-\beta|k|^\alpha)$ (Proposition~2) and a resolvent filter $(1+\beta(k/M)^\alpha)^{-1}$. Furthermore, we prove that any positive multiplicative filter is absorbable into the complex spectral weights (Proposition~3), demonstrating that it modifies the optimization trajectory rather than the operator hypothesis class.
+  \item \textbf{Statistical Validation and Significance Testing (Reviewer 1.4, Reviewer 2.1):} All evaluations now use 5 paired random seeds (seeds 42, 123, 999, 2024, 2025), sample standard deviations ($ddof=1$), 95\% confidence intervals, two-sided paired $t$-tests, exact Wilcoxon signed-rank tests, and Holm--Bonferroni family-wise error rate corrections over 24 tuned comparisons.
+  \item \textbf{Expanded Operator Ladder and Baselines (Reviewer 2.4):} We benchmark against parameter-matched FNOs (A1), Gaussian low-pass controls (A2), fixed rational filters (A3), frozen-parameter controls (A7), additive skip baselines (A8a/A8b), initial-weight scaling controls (A9a), resolvent filters (A10), a 1D U-Net (287,360 parameters), and a DeepONet (287,362 parameters) with Fourier trunk embeddings.
+  \item \textbf{Scale and Regime Exploration (Reviewer 1.3, Reviewer 2.2):} We evaluated three benchmark PDE systems (Fractional Burgers S1, Fractional Allen--Cahn S2, Linear Fractional Diffusion S3), four fractional orders $\alpha \in \{0.8, 1.2, 1.6, 1.9\}$, extended training durations (100 to 300 epochs), expanded dataset sizes ($N_{\mathrm{tr}} = 100, 500, 900$), and zero-shot super-resolution transfer ($N \in \{64, 128, 256, 512\}$).
+  \item \textbf{Resolution of Metric Singularity (Reviewer 1.5, Reviewer 2.3):} We mathematically clarify why raw MAPE is ill-posed and diverges on continuous zero-crossing PDE solutions. We report well-posed percentage metrics: Symmetric MAPE (sMAPE), $\epsilon$-regularized MAPE ($\text{MAPE}_\epsilon$), and clamped raw MAPE.
+  \item \textbf{Linear-Response Spectral Probe (Diagnostic):} We introduce a model-agnostic spectral probe that measures the physical dissipation exponent learned by the operator. We show that a vanilla, unfiltered FNO reproduces the ground-truth exponent of linear fractional diffusion with a mean absolute error of 0.072, establishing that exponent recovery reflects data fitting rather than filter discovery.
+  \item \textbf{Full Transparency and Reproducibility:} All code, synthetic PDE data generation scripts, pre-trained weights, and the full 439-run JSONL execution ledger are publicly available at: \url{https://github.com/HarshitPranjal/Fractional-FNO-Fr-FNO-}.
+\end{enumerate}
+
+Below, we provide detailed, point-by-point responses to each reviewer comment, cross-referencing exact sections, propositions, and tables in the revised manuscript.
+
+\vspace{3mm}
+\hrule height 0.5pt
+\vspace{3mm}
+
+\section*{Response to Reviewer \#1}
+
+\revcomment{Comment 1.1: Novelty over existing fractional FNO methods}{The proposed adaptive fractional filtering approach is interesting, but its novelty over existing fractional Fourier Neural Operator methods needs to be established more clearly.}
+
+\begin{authorresponse}
+We thank the reviewer for this crucial remark. Prior work (e.g., Mehouachi et al., 2026) introduced heuristic rational filters and claimed that parameterizing $\alpha$ allows FNOs to learn fractional-order operators. Our paper's novelty lies in conducting the \textbf{first rigorous theoretical and empirical audit of this premise}:
+
+\begin{itemize}
+  \item \textbf{Theoretical Refutation (Section III, Proposition~1):} We demonstrate that the previously proposed rational filter $\Psi_i(k) = 1/(e^{1-\alpha_i} + \alpha_i k^2)$ cannot represent fractional orders because its asymptotic decay rate is mathematically fixed at $k^{-2}$ for every $\alpha > 0$. The parameter $\alpha$ merely acts as an empirical gain and cutoff frequency.
+  \item \textbf{Hypothesis-Class Equivalence (Section III, Proposition~3):} We prove that any positive multiplicative filter $\Psi_i(k) > 0$ applied to the spectral layers can be absorbed into the complex Fourier weights $R_{oi}'(k) = R_{oi}(k)\Psi_i(k)$. This proves that spectral multipliers do not expand the representational expressivity of the FNO, but only alter optimization dynamics and initialization scale.
+  \item \textbf{Diagnostic Decoupling (Section IV, Table~III):} Using a novel linear-response spectral probe, we demonstrate that a vanilla, unfiltered FNO learns the fractional dissipation exponent of anomalous diffusion with an MAE of 0.072 (outperforming the filtered FNO at 0.198). Thus, empirical exponent recovery cannot be attributed to the filter.
+  \item \textbf{Symmetric Validation Tuning (Section VI-C, Table~V):} When vanilla FNO is tuned on the same learning rate and weight decay grid as the filtered variants, the apparent advantage of fractional filters disappears at $\alpha=1.2$ and shrinks to statistical insignificance after Holm correction at $\alpha=0.8$.
+\end{itemize}
+The revised paper is retitled \textit{``Do Fractional Spectral Filters Help Fourier Neural Operators? A Controlled Ablation''} to reflect this critical, leak-free empirical evaluation.
+\end{authorresponse}
+
+\revcomment{Comment 1.2: Mathematical formulation and relationship to the fractional Laplacian}{The mathematical formulation of the adaptive spectral filter requires stronger justification. Please explain how the proposed filter represents fractional PDE dynamics and clarify its relationship to the standard fractional Laplacian.}
+
+\begin{authorresponse}
+We have completely restructured Section~II and Section~III to provide a rigorous mathematical foundation connecting spectral filtering to the fractional Laplacian $(-\Delta)^{\alpha/2}$:
+
+\begin{enumerate}
+  \item \textbf{Fourier Symbol of the Fractional Laplacian:} The periodic fractional Laplacian $(-\Delta)^{\alpha/2}$ has Fourier symbol $|k|^\alpha$ for wavenumber $k$. For linear fractional diffusion $u_t = -\nu (-\Delta)^{\alpha/2} u$, the exact semi-group propagator over duration $T$ is given in Fourier space by:
+  \begin{equation}
+    \hat{u}(k, T) = \exp(-\nu T |k|^\alpha) \hat{u}(k, 0).
+  \end{equation}
+  \item \textbf{Formulation of the Fractional Symbol (Section II-B, Eq.~3):} To directly incorporate this exact physical dissipation, we formulate the true fractional symbol filter:
+  \begin{equation}
+    \Psi_i(k) = \exp(-\beta_i |k|^{\alpha_i}), \quad \beta_i = \text{softplus}(\hat{\beta}_i) > 0.
+  \end{equation}
+  In Proposition~2, we prove that $\log(-\log \Psi_i(k)) = \log \beta_i + \alpha_i \log k$, showing that the physical fractional order $\alpha$ is strictly the log--log slope of $-\log \Psi$.
+  \item \textbf{Formulation of the Resolvent Filter (Arm A10):} In parallel, we introduce the fractional Laplacian resolvent filter $\Psi_i(k) = [1 + \beta_i (k/M)^{\alpha_i}]^{-1}$, which exhibits exact $\mathcal{O}(k^{-\alpha})$ algebraic decay.
+  \item \textbf{Theoretical Comparison:} In Fig.~2 of the revised manuscript, we contrast the original rational filter against the fractional symbol, showing visually and analytically why the rational filter fails to represent fractional decay while the fractional symbol preserves the true order.
+\end{enumerate}
+\end{authorresponse}
+
+\revcomment{Comment 1.3: Experiments on benchmark PDEs, fractional orders, and spatial resolutions}{The experimental evaluation is limited to two benchmark PDEs. Additional experiments across different fractional orders and spatial resolutions would help demonstrate the generalization capability of the proposed method.}
+
+\begin{authorresponse}
+We have significantly broadened the experimental scope across systems, orders, and spatial grids:
+\begin{itemize}
+  \item \textbf{Three Benchmark Systems (Section V-A):}
+  \begin{enumerate}
+    \item \textbf{S1: Space-Fractional Burgers' Equation} ($u_t + u u_x + \nu (-\Delta)^{\alpha/2} u = 0$, $\nu = 0.1$), capturing advection-dominated non-linear shock formation with fractional dissipation.
+    \item \textbf{S2: Fractional Allen--Cahn Equation} ($u_t + \epsilon^2 (-\Delta)^{\alpha/2} u - u + u^3 = 0$, $\epsilon^2 = 0.01$), capturing non-local phase separation and diffuse interface dynamics.
+    \item \textbf{S3: Linear Fractional Diffusion} ($u_t + \nu (-\Delta)^{\alpha/2} u = 0$, $\nu = 0.1$), serving as an analytical ground-truth testbed.
+  \end{enumerate}
+  \item \textbf{Four Fractional Orders (Section V-A, Section VI):} We test $\alpha \in \{0.8, 1.2, 1.6, 1.9\}$. At higher orders ($\alpha \in \{1.6, 1.9\}$, Table~VI), fractional filters provide zero improvement over vanilla FNO across both Burgers and Allen--Cahn (e.g., on S1 Burgers at $\alpha=1.6$, A0 achieves $0.0225 \pm 0.0008$ whereas the fixed filter A3 yields $0.0345 \pm 0.0017$).
+  \item \textbf{Zero-Shot Super-Resolution Transfer (Section VI-C):} Models trained at resolution $N=256$ were evaluated zero-shot on grids $N \in \{64, 128, 512\}$. Test errors remain within 6\% of native resolution for $N \ge 128$ across all arms, confirming that resolution invariance is preserved by the FNO backbone rather than enhanced by the spectral filter.
+\end{itemize}
+\end{authorresponse}
+
+\revcomment{Comment 1.4: Consistent training settings, parameter matching, compute time, and repeated runs}{The comparison with FNO and fixed fr-FNO should include consistent training settings, parameter counts, computational time, and repeated runs to establish whether the reported improvements are statistically reliable.}
+
+\begin{authorresponse}
+We implemented strict parity controls across the entire benchmarking pipeline:
+\begin{itemize}
+  \item \textbf{Parameter Matching (Arm A1, Table~I):} The adaptive filter introduces 256 extra trainable parameters across the four Fourier layers. We constructed Arm A1, a parameter-matched FNO where the projection layer width is increased from 128 to 132, yielding an exact parameter match (+264 parameters). A1 performs identically to A0 (Table~IV), confirming that parameter count alone does not explain the performance variance.
+  \item \textbf{Statistical Rigor (Section V-B):} All experiments were conducted across 5 shared random seeds (42, 123, 999, 2024, 2025). We report sample standard deviations ($ddof=1$), 95\% Student's $t$ confidence intervals, and Holm-corrected $p$-values.
+  \item \textbf{Computational Cost (Section VI-C):} Wall-clock training times per epoch on Apple Silicon GPU are reported: vanilla FNO (A0) requires 0.117\,s/epoch, while fractional filtered arms require 0.121--0.141\,s/epoch (+3\% to +20\% overhead). Inference latency per sample is identical within measurement noise ($\le 12\%$).
+\end{itemize}
+\end{authorresponse}
+
+\revcomment{Comment 1.5: Missing implementation details and MAPE divergence at zero-crossings}{Some implementation details are missing, including the initial-condition generation parameters, numerical solver settings, fractional-order initialization, and exact evaluation procedure. Please also clarify the MAPE calculation, particularly when solution values are zero or close to zero.}
+
+\begin{authorresponse}
+We have resolved all missing implementation details and addressed the MAPE calculation in Section~V:
+\begin{itemize}
+  \item \textbf{Initial Condition Generation (Section V-A):} Initial conditions are drawn from a Gaussian Random Field (GRF) with zero mean and covariance kernel $K = (-\Delta + 9I)^{-2}$ on $[0, 2\pi)$ with periodic boundary conditions. Fields are standardized to unit variance and passed through system-specific mappings: $0.5 u_0$ for Burgers, $\tanh(u_0)$ for Allen--Cahn, and $u_0$ for Diffusion.
+  \item \textbf{Numerical Solver Accuracy (Section V-A):} We used Strang splitting combining exact Fourier integration for the fractional Laplacian with a 4th-order Runge--Kutta (RK4) integration for non-linear terms under $2/3$-rule spectral dealiasing ($\Delta t = 10^{-3}$, $N=512$, spectrally downsampled to $N=256$). Spatial truncation error was verified below $0.13\%$.
+  \item \textbf{MAPE Divergence Analysis (Section V-B, Eq.~8--9):} The reviewer correctly identifies that raw MAPE, $\frac{100}{n}\sum |u - \hat{u}|/|u|$, contains an essential singularity when $u(x, t) \to 0$. In our continuous PDE fields, $|u|$ reaches values as small as $2 \times 10^{-6}$ near zero-crossings, causing raw MAPE to explode (exceeding 185\% on DeepONet) despite small absolute errors. To resolve this, we report two well-behaved metrics:
+  \begin{align}
+    \text{sMAPE} &= \frac{100}{n}\sum \frac{2|u - \hat{u}|}{|u| + |\hat{u}| + \delta}, \quad \delta = 10^{-6},\\
+    \text{MAPE}_\epsilon &= \frac{100}{n}\sum \frac{|u - \hat{u}|}{|u| + \epsilon}, \quad \epsilon = 0.01\cdot(\text{std}(u) + 10^{-10}).
+  \end{align}
+  As reported in Section~VI-C and Table~V, both sMAPE and $\text{MAPE}_\epsilon$ preserve the exact monotonic ranking of the relative $L^2$ error across all arms.
+\end{itemize}
+\end{authorresponse}
+
+\vspace{3mm}
+\hrule height 0.5pt
+\vspace{3mm}
+
+\section*{Response to Reviewer \#2}
+
+\revcomment{Comment 2.1: Lack of statistical validation (repeated seeds, std deviations, confidence intervals)}{There is no statistical validation: no repeated seeds, standard deviations or confidence intervals.}
+
+\begin{authorresponse}
+We fully agree with the reviewer. In the revised paper, \textbf{every reported claim is backed by rigorous multi-seed statistical testing}:
+\begin{itemize}
+  \item Every cell in Tables~II, III, IV, V, and VI reports the sample mean $\pm$ sample standard deviation across 5 independent seeds.
+  \item We computed paired two-sided Student's $t$-tests comparing each arm directly against vanilla FNO (A0) on the same seeds.
+  \item To account for multiple testing across the 8 candidate models and 3 tuned physical cells (24 simultaneous hypotheses), we applied the \textbf{Holm--Bonferroni family-wise error rate correction}.
+  \item We also evaluated exact two-sided Wilcoxon signed-rank tests. As noted in Section~VI-C, for $n=5$ seeds, the minimum possible two-sided Wilcoxon $p$-value is $1/2^4 = 0.0625$, mathematically demonstrating why claims of statistical significance with $n=5$ seeds are unsupportable without larger cohorts.
+\end{itemize}
+\end{authorresponse}
+
+\revcomment{Comment 2.2: Small training sizes (100, 500 samples) and short training (75, 100 epochs)}{Training sizes (100 and 500 samples) and epochs (75 and 100) are small.}
+
+\begin{authorresponse}
+We substantially expanded both the training duration and the training data volume to examine whether filter gains persist as models approach asymptotic convergence:
+\begin{itemize}
+  \item \textbf{Extended Training Duration (300 Epochs, Section VI-C, Table~VI):} We extended training from 100 to 300 epochs under a cosine decay schedule. At 300 epochs on Fractional Allen--Cahn ($\alpha=0.8$), vanilla FNO error drops from $0.0128$ to $\mathbf{0.0040 \pm 0.0003}$, while the best fractional filter (A6) achieves $0.0035 \pm 0.0002$. The paired difference is $-0.0004$ ($p = 0.054$), demonstrating that \textbf{the apparent 42--78\% filter advantage observed at 100 epochs shrinks to parity with extended training}.
+  \item \textbf{Extended Dataset Scale ($N_{\mathrm{tr}} = 900$, Table~VI):} Training on all available training samples ($N_{\mathrm{tr}} = 900$) similarly reduces the gap on Allen--Cahn: A6 is $0.0047 \pm 0.0008$ versus A0 at $0.0055 \pm 0.0013$ ($p = 0.089$, not statistically significant).
+\end{itemize}
+This establishes a central finding of our revised paper: the spectral filter acts primarily as an early-stage optimization accelerator / high-frequency damper, rather than a permanent representational improvement.
+\end{authorresponse}
+
+\revcomment{Comment 2.3: MAPE announced as a metric but never reported}{MAPE is announced as a metric but never reported.}
+
+\begin{authorresponse}
+We apologize for this omission in the earlier draft. We have thoroughly reported percentage error metrics in Section~VI-C:
+\begin{itemize}
+  \item As explained in response to Reviewer 1.5, continuous fields with zero crossings render raw MAPE mathematically singular.
+  \item In the revised paper, we explicitly report both Symmetric MAPE (sMAPE) and $\epsilon$-regularized MAPE ($\text{MAPE}_\epsilon$). On S2 Allen--Cahn ($\alpha=0.8$), tuned A0 achieves $\text{sMAPE} = 2.81\%$ and $\text{MAPE}_\epsilon = 2.42\%$, compared to $1.44\%$ and $1.14\%$ for A6. On S1 Burgers ($\alpha=1.2$), A0 achieves $7.97\%$ and $7.25\%$ against $10.59\%$ and $10.47\%$ for A3.
+  \item These metrics strictly confirm that the relative $L^2$ error comparisons are consistent and robust across multiple metric definitions.
+\end{itemize}
+\end{authorresponse}
+
+\revcomment{Comment 2.4: Vanilla FNO is the only baseline. Compare against other operators}{The only baseline is a vanilla FNO. Please compare against other operators.}
+
+\begin{authorresponse}
+We implemented, tuned, and evaluated two prominent non-FNO neural operator architectures, matched in parameter capacity to our 287k FNO backbone:
+\begin{enumerate}
+  \item \textbf{1D U-Net (287,360 parameters):} A 3-level convolutional encoder-decoder with residual skip connections and GELU activations.
+  \item \textbf{DeepONet (287,362 parameters):} A branch MLP taking 256 pointwise sensors and a trunk MLP encoding coordinate $x$, interacting via an inner product.
+\end{enumerate}
+As shown in Table~V of the revised manuscript:
+\begin{itemize}
+  \item The U-Net obtains test errors of $0.1674$ (Burgers) and $0.0447$ (Allen--Cahn), which are $2.9\times$ to $4.3\times$ higher than vanilla FNO ($0.0389$ and $0.0128$).
+  \item Standard DeepONet suffered from severe underfitting (test error $>0.53$). To give DeepONet the strongest fair chance, we explored four architectural enhancements (Section VI-C): input normalization, widening the trunk to width 256, 300-epoch training, and random Fourier features ($k=1,\dots,16$). Adding Fourier features successfully reduced test error to $0.249 \pm 0.003$ on Burgers and $0.255 \pm 0.004$ on Allen--Cahn, but DeepONet still remained $6.4\times$ to $20\times$ worse than FNO.
+  \item Paired $t$-tests against A0 confirm that the FNO family significantly outperforms U-Net and DeepONet ($p_{\mathrm{Holm}} \le 1.9 \times 10^{-3}$).
+\end{itemize}
+\end{authorresponse}
+
+\revcomment{Comment 2.5: Reformulate the filter so that $\alpha$ actually controls spectral decay}{Reformulate the filter so that $\alpha$ actually controls the spectral decay.}
+
+\begin{authorresponse}
+We addressed this directly by developing two principled filters where $\alpha$ mathematically dictates the spectral decay rate:
+\begin{enumerate}
+  \item \textbf{The True Fractional Symbol (Arm A6, Eq.~3):} $\Psi_i(k) = \exp(-\beta_i |k|^{\alpha_i})$. In Proposition~2, we prove that $\log(-\log \Psi_i(k)) = \log \beta_i + \alpha_i \log k$, ensuring that $\alpha$ is strictly the log--log slope of dissipation.
+  \item \textbf{The Fractional Resolvent Filter (Arm A10):} $\Psi_i(k) = [1 + \beta_i (k/M)^{\alpha_i}]^{-1}$, derived from the resolvent of $(-\Delta)^{\alpha/2}$. For large $k$, $\Psi(k) \approx \beta^{-1} (k/M)^{-\alpha}$, yielding an asymptotic decay exponent of strictly $-\alpha$.
+\end{enumerate}
+\textbf{Empirical Findings (Table~V):} When evaluated under rigorous tuning, the true fractional resolvent filter A10 and identity-initialized symbol A6j match vanilla FNO error to within numerical precision ($0.0392$ vs $0.0389$ on Burgers; $0.0126$ vs $0.0128$ on Allen--Cahn). Furthermore, tracking the learned parameters revealed that $\alpha$ stays near its initial value ($0.96$--$0.99$) and does not converge to the physical PDE order $\alpha_{\mathrm{true}}$. This proves empirically that adding explicit fractional structure does not confer an inductive advantage over standard spectral weight learning.
+\end{authorresponse}
+
+\vspace{3mm}
+\hrule height 1pt
+\vspace{3mm}
+
+\section*{Key Benchmark Summary Tables from Revised Manuscript}
+
+For convenience of the reviewers, we reproduce the central empirical tables from the revised manuscript.
+
+\subsection*{Table IV: Core Benchmark under Default Hyperparameters ($N_{\text{tr}}=500$, 100 Epochs, 5 Seeds)}
+\begin{center}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lcccc}
+\toprule
+ & \multicolumn{2}{c}{\textbf{S1: Fractional Burgers}} & \multicolumn{2}{c}{\textbf{S2: Fractional Allen--Cahn}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+\textbf{Model / Arm} & $\alpha=0.8$ & $\alpha=1.2$ & $\alpha=0.8$ & $\alpha=1.2$ \\
+\midrule
+A0 (Vanilla FNO) & $0.1085 \pm 0.0070$ & $0.0549 \pm 0.0060$ & $0.0399 \pm 0.0031$ & $0.0321 \pm 0.0013$ \\
+A1 (Param-Matched) & $0.1101 \pm 0.0039$ & $0.0546 \pm 0.0033$ & $0.0370 \pm 0.0030$ & $0.0301 \pm 0.0015$ \\
+A2 (Gaussian Smooth) & $0.1099 \pm 0.0063$ & $0.0551 \pm 0.0062$ & $0.0391 \pm 0.0031$ & $0.0312 \pm 0.0014$ \\
+A3 (Fixed Rational) & $0.1728 \pm 0.0071$ & $0.1054 \pm 0.0052$ & $\mathbf{0.0086 \pm 0.0013}$ & $0.0187 \pm 0.0010$ \\
+A5 (Adaptive Rational) & $0.1772 \pm 0.0113$ & $0.1120 \pm 0.0090$ & $0.0110 \pm 0.0005$ & $0.0177 \pm 0.0009$ \\
+A6 (Fractional Symbol) & $0.1156 \pm 0.0052$ & $0.0591 \pm 0.0058$ & $0.0105 \pm 0.0028$ & $\mathbf{0.0173 \pm 0.0010}$ \\
+A6i (Identity Init) & $0.1085 \pm 0.0070$ & $0.0549 \pm 0.0060$ & $0.0399 \pm 0.0031$ & $0.0321 \pm 0.0013$ \\
+A7 (Frozen Filter) & $0.1962 \pm 0.0083$ & $0.1230 \pm 0.0069$ & $0.0112 \pm 0.0006$ & $0.0177 \pm 0.0009$ \\
+A8b (Channel Gain) & $\mathbf{0.1073 \pm 0.0067}$ & $\mathbf{0.0540 \pm 0.0060}$ & $0.0399 \pm 0.0032$ & $0.0320 \pm 0.0013$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Table V: Symmetrically Tuned Comparison with External Baselines (100 Epochs, 5 Seeds)}
+\begin{center}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model Arm} & \textbf{S1 Burgers ($\alpha{=}1.2$)} & \textbf{S2 AC ($\alpha{=}0.8$)} & \textbf{S2 AC ($\alpha{=}1.2$)} & \textbf{Holm Sig.?} \\
+\midrule
+A0 (Vanilla FNO) & $0.0389 \pm 0.0063$ & $0.0128 \pm 0.0038$ & $0.0151 \pm 0.0012$ & Baseline \\
+A9a (Scaled Init) & $\mathbf{0.0382 \pm 0.0060}$ & $0.0127 \pm 0.0034$ & $0.0151 \pm 0.0010$ & No ($p=0.49$) \\
+A6j (Near-Identity Symbol) & $0.0392 \pm 0.0060$ & $0.0126 \pm 0.0042$ & $0.0151 \pm 0.0016$ & No ($p=0.49$) \\
+A10 (Resolvent Filter) & $0.0392 \pm 0.0060$ & $0.0126 \pm 0.0042$ & $0.0151 \pm 0.0016$ & No ($p=0.49$) \\
+A6 (Fractional Symbol) & $0.0399 \pm 0.0048$ & $\mathbf{0.0070 \pm 0.0011}$ & $0.0164 \pm 0.0007$ & No ($p_{\mathrm{Holm}}=0.47$) \\
+A5 (Adaptive Rational) & $0.0554 \pm 0.0100$ & $0.0079 \pm 0.0008$ & $\mathbf{0.0148 \pm 0.0004}$ & No ($p_{\mathrm{Holm}}=0.54$) \\
+A3 (Fixed Rational) & $0.0575 \pm 0.0075$ & $0.0078 \pm 0.0005$ & $0.0161 \pm 0.0005$ & No ($p_{\mathrm{Holm}}=0.55$) \\
+U-Net (287k params) & $0.1674 \pm 0.0043$ & $0.0447 \pm 0.0054$ & $0.0443 \pm 0.0068$ & \textbf{Yes} ($p \le 1.9\times 10^{-3}$) \\
+DeepONet (287k params) & $0.4518 \pm 0.0090$ & $0.5375 \pm 0.0121$ & $0.5397 \pm 0.0214$ & \textbf{Yes} ($p \le 1.0\times 10^{-4}$) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{3mm}
+\noindent We once again express our sincere appreciation to both Reviewers for pushing us to execute this thorough, leak-free empirical ablation study. We believe the resulting paper provides clear, actionable clarity for the neural operator and scientific machine learning communities.
+
+\end{document}
